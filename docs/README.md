@@ -10,6 +10,8 @@ from `com.bajajconnect.rideapp` v1.11.1 and verified against a **Pulsar N160 UG 
 | [`MANEUVERS.md`](MANEUVERS.md) | Icon vocabulary, Google Maps mapping, and the `A`–`Z` worksheet still to be filled in. |
 | [`SIGNALS.md`](SIGNALS.md) | Capability catalogue — what this cluster can do and what is worth building. |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | Engineering guide for building a client well on modern Android. |
+| [`FIELD-TESTS.md`](FIELD-TESTS.md) | **Every open question as a bike test.** Fill in the Observed columns. |
+| [`DEVELOPMENT-NOTES.md`](DEVELOPMENT-NOTES.md) | **Bugs found and traps to avoid.** Read before writing the production app. |
 
 The diagnostic Android build that proved this protocol against real hardware lives in the
 repository root — see [`../README.md`](../README.md).
@@ -20,9 +22,18 @@ repository root — see [`../README.md`](../README.md).
 `[hardware]`. The captured frame in that section decodes exactly as the official app's own
 log reported it, checksum included.
 
-**The link is not yet stable.** A client that writes navigation frames but never reads
-`CONTROL` is dropped by the cluster after ~65 seconds. Four candidate causes are ranked in
-`CONNECTION.md` §6. Unresolved.
+**The link is not yet stable.** The cluster drops a client that never reads `CONTROL` after
+~65 seconds — five occurrences across two sessions, all GATT status 8, inside a 0.4 s
+spread. Four candidates are ranked in `CONNECTION.md` §6. Unresolved.
+
+**This bike runs the Mappls path, not Google** `[hardware]` — which implies an unrecognised
+SKU, and therefore the **v1 packet generation** for `GENERAL`/`MISSED_CALL`/`ALERTS`.
+`TBT_INFO` is identical in both. See `PROTOCOL.md` §2.
+
+**Three field findings shape the product** `[hardware]`: the cluster shows **no street
+text**, has **no roundabout icon** (both codes inert), and the **GPS bits gate the entire
+navigation display**. Kilometre-mode distances may be mis-rendered and are the top thing to
+re-test — see `PROTOCOL.md` §4.
 
 ## Reproducing the analysis
 
@@ -82,7 +93,6 @@ Tracked per document; the ones that matter most:
 - `PLAYLIST_INFO` frame layout. `PROTOCOL.md` §10
 - The second vendor service `0020676e-…`, unknown to the app entirely.
 
-One bike session closes most of the icon questions: read the Device Information service
-(`2A24`–`2A29`) to pin model and firmware, then sweep `A`–`Z` filming the cluster. Vary the
-distance or text between steps — an unknown icon byte leaves the **previous** icon on
-screen `[hardware]`, so a dud is invisible otherwise.
+[`FIELD-TESTS.md`](FIELD-TESTS.md) turns all of these into a checklist. Eight of them are
+testable with the diagnostic build as it stands; nine need app changes first and are listed
+separately there.

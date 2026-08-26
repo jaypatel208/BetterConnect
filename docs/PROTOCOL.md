@@ -55,8 +55,28 @@ useNewGeneralProtocol() = VehicleFeature.BLE_GENERAL_PACKET_V2.isEnabledFor(mode
 ```
 
 `BLE_GENERAL_PACKET_V2` is registered for cohorts `CLUSTER_V1` and `BLE_ONLY_GENERAL_V2`
-`[dex]`, which between them cover every SKU the app knows — so **v2 is the normal case**.
-Alerts and missed-call selection follow the same flag.
+`[dex]`. Alerts and missed-call selection follow the same flag.
+
+**An unrecognised SKU gets every feature `false`** `[dex]` — `isEnabled` returns false when
+the SKU matches no cohort. That has a specific and useful consequence:
+
+```java
+isBleTbtEnabled() = !BLE_GENERAL_PACKET_V2.isEnabledFor(sku) || BLE_TBT.isEnabledFor(sku)
+//                   ^ false for an unknown SKU, so !false = TRUE - navigation still works
+```
+
+So an unknown SKU still gets navigation, but gets **v1 packets** and **Mappls** rather than
+Google (`MAP_GOOGLE_NAV` is registered to `CLUSTER_V1` only).
+
+**This bike appears to be an unrecognised SKU** `[inferred]`: navigation works, and the
+official app shows **Mappls**, not Google `[hardware]`. Both follow from every flag being
+false. If it were in `BLE_ONLY_GENERAL_V2` instead, `BLE_TBT` would be false and navigation
+would not work at all.
+
+**Practical consequence:** for this bike the `GENERAL` / `MISSED_CALL` / `ALERTS` sizes are
+most likely the **v1** ones (55 / 74 / 40), not v2 (89 / 63 / 44). **Unconfirmed** — it is
+what the vendor app would send, but the cluster may accept either. `TBT_INFO` is unaffected:
+both generations build the identical 48-byte frame.
 
 | | v1 (`CallFrame`) | v2 (`New*PacketV2`) |
 |---|---|---|
@@ -103,6 +123,11 @@ correctly on the cluster.
 `0` not active · `1` active · `2` searching. So "bit2 = GPS active" is only true for the
 active case; *searching* sets bit 3, not bit 2.
 
+**The GPS bits gate the entire navigation display** `[hardware]`. Clearing them removed the
+whole navigation area from the cluster, not just an indicator. Any client must set GPS
+active on every frame while navigating, or nothing is shown at all. (Observed once —
+consistent but worth a confirming repeat.)
+
 **Byte 13 is the Take-Me-Home acknowledgement**, mirroring the rider's request byte from
 `CONTROL` `[dex]`. An earlier revision called it reserved. Wrong.
 
@@ -125,7 +150,46 @@ same characteristic. Which the cluster sees depends on which code path is drivin
 12345 m -> bytes[2..5] = 23 00 0c 00   bit4=0  -> 12.35 km
 ```
 
-### Text
+**Metre mode is confirmed correct on hardware** — 500 m displays as 500 m `[hardware]`.
+
+**Our kilometre encoding is byte-for-byte identical to the vendor's** `[dex]`. Their
+`NavigationHelper.formatDistance(double)` computes whole and fraction exactly as described
+here, and 1011 m produces the same five bytes from both. So if the cluster renders it wrongly
+for us, it renders it wrongly for the official app too — which makes an observation error the
+more likely explanation. **Re-test by direct comparison:** run the official app to a
+destination about 2.5 km away, note the cluster reading, then send 2500 m from ours.
+
+**Kilometre mode may be wrong.** A frame for 1011 m (which encodes as whole = 1,
+fraction = 1, i.e. `1.01 km`) was reported as displaying roughly **`10 km`** `[hardware]`,
+though the observation is uncertain. If real, the cluster is not reading whole and fraction
+the way this document describes for the km case.
+
+This is **the single highest-priority thing to re-test**, because navigation is unusable if
+distances above 1 km are wrong. Use asymmetric values, which discriminate between the
+candidate interpretations where 1011 does not:
+
+| Send | This spec predicts | If cluster wants tenths in the whole field |
+|---|---|---|
+| 2500 m | `2.50 km` | `250 km` |
+| 1200 m | `1.20 km` | `120 km` |
+| 5750 m | `5.75 km` | `575 km` |
+
+Record exactly what the display shows, digit for digit, including any decimal point.
+
+### Text — not rendered on this cluster
+
+**The street text field has no visible effect on the Pulsar N160 UG** `[hardware]`. Frames
+carrying `TEST ROAD`, `abc` and single characters were accepted — the ETA, icon and distance
+from the same frames all displayed — but no text appeared anywhere.
+
+Most likely this negative-LCD cluster simply has **no alphanumeric street field**, and the
+31/32-byte text region exists for the TFT clusters on other models `[inferred]`. Bytes
+14–46 should still be populated correctly, but nothing on this bike will show them.
+
+Consequence for navigation: **the rider gets an arrow, a distance and an ETA — no road
+name.** Plan the product around that.
+
+The encoding rules below still apply to the wire format:
 
 `replaceAll("[^0-9a-zA-Z.]", " ").trim()` in both implementations `[dex]` `[js]`. This
 destroys hyphens: `Sarkhej-Gandhinagar Hwy` ships as `Sarkhej Gandhinagar Hwy`. Dots

@@ -95,6 +95,28 @@ Two important asymmetries `[dex]`:
   `g`. `G` therefore means both "straight ahead" and "arrived", separated only by the blink
   form.
 
+## 3b. Which vocabulary drives THIS bike: Mappls
+
+The official app shows **Mappls** on this bike `[hardware]`, so the Google mapping in §4 is
+**not** what its cluster sees. The Mappls path uses `NavigationHelper.maneuverIDMap`
+`[dex]` — the same map this document was originally derived from, now cross-verified
+against the native code.
+
+Both paths build the **identical 48-byte frame**; only the manoeuvre→icon choice differs.
+
+Two consequences that matter:
+
+- **`B` = "enter the rotary"** (Mappls manoeuvre 72 → 66 `[dex]`). You observed `A` and `B`
+  drawing a partial arc `[hardware]`. That is a direct confirmation: **`B` is the rotary
+  icon**, and the native enum's claim that `B` means `WRONG_WAY` does not describe this
+  cluster.
+- **Mappls manoeuvres 58–71 are roundabouts** and map to `N` / `U` `[dex]` — both of which
+  are **inert on this cluster** `[hardware]`. So the official app cannot draw those
+  roundabouts here either. Only the rotary (72 → `B`) renders.
+
+Exit numbers `[dex]`: manoeuvres 58–64 → exits 1–7, and 65–71 → exits 1–7, both ascending.
+(An earlier revision of this document had the 58–64 block reversed. Corrected.)
+
 ## 4. Google Navigation SDK → icon
 
 The vendor's own mapping `[dex]`. Reproduced because it is the most complete
@@ -138,70 +160,125 @@ Exit number goes in the **high nibble of byte 7**, 1–7. Taken from
 Sticky state carries the entry icon and exit number through the `ROUNDABOUT_EXIT_*`
 manoeuvre so the exit leg keeps showing the same roundabout.
 
-## 5. `A`–`Z` worksheet — the artefact that settles this
+## 5. `A`–`Z` sweep — RESULTS
 
-**Only the `Observed on cluster` column can close a row.** Everything in the Source column
-is a claim about what the *app* believes, which is a different claim from what the
-*cluster draws*.
+Run on a Pulsar N160 UG, full alphabet, constant 500 m / `TEST ROAD` `[hardware]`.
 
-Run the sweep, film the cluster, fill in the middle column.
+**19 of 26 codes render. Seven do nothing.**
 
-| Byte | Char | Believed meaning | Source | Observed on cluster | Status |
-|---|---|---|---|---|---|
-| 0x41 | `A` | — | unused in both | *(to fill)* | **open** |
-| 0x42 | `B` | `WRONG_WAY` / enter rotary | `[dex]` vs `[js]` **conflict** | *(to fill)* | **open** |
-| 0x43 | `C` | slight left / keep left | **conflict** | *(to fill)* | **open** |
-| 0x44 | `D` | slight right / keep right | **conflict** | *(to fill)* | **open** |
-| 0x45 | `E` | sharp left | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x46 | `F` | sharp right | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x47 | `G` | straight / arrived steady | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x48 | `H` | arrived (blink form) | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x49 | `I` | turn left | `[dex]` `[js]` agree | **renders** `[hardware]` | **confirmed** |
-| 0x4A | `J` | turn right | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x4B | `K` | ramp left | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x4C | `L` | ramp right | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x4D | `M` | — | unused in both | *(to fill)* | **open** |
-| 0x4E | `N` | roundabout (right / family A) | `[dex]` `[js]` | **renders** `[hardware]` | **confirmed present** |
-| 0x4F | `O` | u-turn (handedness disputed) | **conflict** | *(to fill)* | **open** |
-| 0x50 | `P` | u-turn (handedness disputed) | **conflict** | *(to fill)* | **open** |
-| 0x51 | `Q` | fork left | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x52 | `R` | fork right | `[dex]` `[js]` agree | *(to fill)* | unconfirmed |
-| 0x53 | `S` | — | unused in both | **no effect** `[hardware]` | **confirmed inert** |
-| 0x54 | `T` | `FERRY_TRAIN` | `[dex]` | **no effect** `[hardware]` | **conflict — see §2** |
-| 0x55 | `U` | roundabout (left / family B) | `[dex]` `[js]` | *(to fill)* | **open — `N` vs `U`** |
-| 0x56 | `V` | `MERGE` | `[dex]` | *(to fill)* | **open** |
-| 0x57 | `W` | — | unused in both | *(to fill)* | **open** |
-| 0x58 | `X` | keep right / slight right | **conflict** | *(to fill)* | **open** |
-| 0x59 | `Y` | `FERRY` | `[dex]` | *(to fill)* | **open** |
-| 0x5A | `Z` | keep left / slight left | **conflict** | *(to fill)* | **open** |
+| Byte | Renders? | Observed | Notes |
+|---|---|---|---|
+| `A` | **yes** | partial arc, "like a loader at 0–80%, not a full circle" | identical to `B`. **Not in the native enum at all** |
+| `B` | **yes** | same partial arc as `A` | |
+| `C` | yes | | exact shape not yet recorded |
+| `D` | yes | | |
+| `E` | yes | | |
+| `F` | yes | | |
+| `G` | yes | | |
+| `H` | yes | | |
+| `I` | yes | turn left | |
+| `J` | yes | | |
+| `K` | yes | | |
+| `L` | yes | | |
+| `M` | **no effect** | | unused in the enum too — genuinely unallocated |
+| `N` | **NO EFFECT** | | **roundabout family A — this cluster has no such icon** |
+| `O` | yes | | |
+| `P` | yes | | |
+| `Q` | yes | | |
+| `R` | yes | | |
+| `S` | **no effect** | | unused in the enum too |
+| `T` | **NO EFFECT** | | `FERRY_TRAIN` in the enum — not on this cluster |
+| `U` | **NO EFFECT** | | **roundabout family B — this cluster has no such icon** |
+| `V` | yes | | `MERGE` |
+| `W` | **no effect** | | unused in the enum too |
+| `X` | **yes** | renders, but **not exactly** what the official app draws for that direction — "almost identical" | worth a closer look |
+| `Y` | **NO EFFECT** | | `FERRY` in the enum — not on this cluster |
+| `Z` | yes | | |
 
-Also record the **lowercase** form of any letter that renders, to confirm blinking.
+### What this cluster's icon set actually is
 
-### Hardware behaviour already established
+```
+PrimaryTurns  minus {N, U, T, Y}  plus {A}
+```
 
-- **An unknown icon byte leaves the previous icon on screen** `[hardware]`. The cluster does
-  not blank. So a wrong code is invisible in testing unless you change something else at
-  the same time — vary the distance or text between sweep steps.
-- `S` and `T` produced no change `[hardware]`.
+Three groups, and the split is coherent:
+
+- **`M`, `S`, `W`** — unused by the app *and* inert on hardware. Genuinely unallocated.
+- **`T`, `Y`** — ferry and ferry-train. The app defines them; a motorcycle cluster in India
+  reasonably has no ferry icon.
+- **`N`, `U`** — **both roundabout families are inert.** This is the significant one, and it
+  is a hard constraint on navigation. See below.
+- **`A`** — renders, yet the native enum never emits it. The cluster draws something the app
+  never asks for.
+
+### Roundabouts: likely `A`/`B`, not `N`/`U`
+
+`N` and `U` — the two codes the vendor's Google path uses for every roundabout — **do
+nothing on this cluster** `[hardware]`. Meanwhile `A` and `B` both draw a **partial arc**,
+which is what a roundabout pictogram looks like.
+
+The Mappls sprite map calls `B` *"enter the rotary"*; the native enum calls it `WRONG_WAY`.
+The hardware behaviour supports the sprite map and contradicts the enum.
+
+**Working hypothesis** `[inferred]`: on this cluster the rotary/roundabout icon is `A`/`B`,
+and `N`/`U` belong to a different cluster generation. **Unconfirmed** — needs someone to
+compare against the official app entering a real roundabout.
+
+### Corrections to earlier revisions of this document
+
+- An earlier revision recorded **`N` as "renders something"**. That was wrong. It was
+  inferred from a captured frame that merely showed `N` being *sent* — which says nothing
+  about what was *drawn*. Exactly the error class the evidence tags exist to prevent.
+- The `N` vs `U` question is not "which one does it draw" but **"neither"**.
+
+### Still open from this sweep
+
+- The exact shape each rendering code draws — only `A`/`B` and `I` were described.
+- Why `X` differs slightly from the official app's arrow for the same direction.
+- Whether the `C`/`Z` and `D`/`X` conflicts are resolved — needs the shapes, not just
+  "renders".
+- **Blinking is untested.** Lower vs upper case showed no difference, but the codes used for
+  that test (`A`/`a`) are ones whose blink behaviour is unknown. Re-test with `I` vs `i`.
 
 ## 6. Building a mapping we can trust
 
-Until the worksheet is filled in:
+Constraints now established on hardware `[hardware]`:
 
-- **Use only the confirmed and agreed rows.** `I`, `J`, `E`, `F`, `G`, `H`, `K`, `L`, `Q`,
-  `R` have both sources agreeing.
-- **Avoid the conflicted pairs** (`C`/`Z`, `D`/`X`, `O`/`P`, `B`) in production mapping
-  until observed. Prefer degrading a slight-left to `I` (a confirmed left) over guessing
-  between `C` and `Z`.
-- **Never default to `B`.** If a manoeuvre cannot be mapped, hold the previous icon or send
-  `G`. Telling a rider "wrong way" because of an unmapped enum is a safety issue, not a
-  cosmetic one.
-- **Use `K`/`L` for ramps.** They exist and the vendor does not use them.
+- **Roundabouts cannot be drawn with `N` or `U`.** Both are inert. Until `A`/`B` is
+  confirmed as the rotary icon, a roundabout has no reliable representation — fall back to
+  the closest turn direction (`I`/`J`) rather than sending an inert code, which would leave
+  the *previous* arrow on screen and actively mislead.
+- **Never send `M`, `S`, `T`, `U`, `W`, `Y` or `N`.** They render nothing, and because the
+  cluster holds the previous icon, sending one is worse than sending nothing: the rider
+  keeps seeing a stale instruction that looks current.
+- **Ferry manoeuvres have no icon.** Map them to `G` (straight) rather than `T`/`Y`.
+- **Never default to `B`.** The vendor's Google mapping falls back to `B` = `WRONG_WAY` for
+  every unmapped manoeuvre. On this cluster `B` draws an arc that is probably a rotary, so
+  the vendor's fallback would show riders a roundabout for anything unmapped. Hold the
+  previous icon or send `G`.
+- **Use `K`/`L` for ramps.** Both render, and the vendor leaves them unused.
+
+The safe set for a first navigation build — renders on hardware, and both sources agree on
+meaning:
+
+```
+I  turn left        J  turn right
+E  sharp left       F  sharp right
+Q  fork left        R  fork right
+K  ramp left        L  ramp right
+G  straight         H  arrived
+```
+
+`C`/`D`/`X`/`Z` all render but their meanings are still disputed between sources, so a
+slight-left is safer degraded to `I` than guessed between `C` and `Z`.
 
 ## 7. Open questions
 
-- Every `*(to fill)*` row above.
-- The six direct conflicts in §1.
-- Whether `T`/`Y` (ferry) render at all on a motorcycle cluster.
-- Whether the cluster distinguishes `N` from `U`, or draws the same roundabout for both.
-- Whether lowercase forms blink for all icons or only some.
+- The exact shape drawn by each of the 19 rendering codes. Only `A`/`B` and `I` described.
+- Whether `A`/`B` really is the roundabout/rotary icon.
+- Whether blinking works at all — the lower/upper test used an inert pair and is void.
+  Re-test `I` vs `i`.
+- Why `X` renders slightly differently from the official app's arrow for that direction.
+- Whether `C`/`Z` and `D`/`X` are swapped relative to one of the two source vocabularies.
+- Whether the roundabout **exit number** (byte 7 high nibble) renders at all, given that
+  both roundabout icons are inert.

@@ -17,6 +17,10 @@ marked absent below is absent on this hardware regardless of what the protocol d
 | Capability | Char | On this bike | Protocol | Effort | Verdict |
 |---|---|---|---|---|---|
 | Turn-by-turn navigation | `0110` | **yes** `[hardware]` | **complete, hardware-verified** | — | **Build first** |
+| — icon | | 19 of 26 codes render `[hardware]` | | | **no roundabout, no ferry** |
+| — distance | | metres OK; **km suspect** `[hardware]` | | | must re-test, §2 |
+| — street text | | **not displayed** `[hardware]` | | | cluster has no text field |
+| — ETA | | **yes** `[hardware]` | | | |
 | Clear the display | `0110` | **yes** `[hardware]` | complete | trivial | **Build** — required |
 | Phone status (battery, signal, volume, DND) | `0210` | **yes** `[hardware]` | complete `[dex]` | low | **Build** — likely required, see §3 |
 | Rider button input | `0A10` | **yes** `[hardware]` | complete `[dex]` | low | **Build** — see §4 |
@@ -37,7 +41,20 @@ The one capability proven end to end on real hardware `[hardware]`.
 Carries: manoeuvre icon, distance to turn, total distance remaining, ETA as wall-clock
 time, roundabout exit number, GPS-active flag, and up to 31 characters of street text.
 
-Constraints worth designing around:
+**Three hardware constraints discovered in the field, which materially shape the product:**
+
+1. **No street name.** The text field is accepted but never displayed on this cluster
+   `[hardware]`. The rider gets an arrow, a distance and an ETA — nothing else.
+2. **No roundabout icon.** Both roundabout codes (`N`, `U`) are inert `[hardware]`.
+   Roundabouts must degrade to a turn direction, or possibly `A`/`B` if that arc turns out
+   to be the rotary pictogram.
+3. **Kilometre distances may be mis-rendered.** Metres are confirmed correct; a km-mode
+   value was reported displaying wrongly. **Unresolved and blocking** — navigation is
+   unusable if distances above 1 km are wrong. See `PROTOCOL.md` §4.
+4. **The GPS bits gate the whole display** `[hardware]`. Clear them and the navigation area
+   disappears entirely. Always set GPS active while navigating.
+
+Other constraints worth designing around:
 - Text is reduced to `[0-9a-zA-Z.]`, 31 chars. Hyphens and slashes become spaces.
 - Distance switches to kilometres at 999 m with two decimals — sub-metre precision is lost
   above that threshold, and 999 m itself renders as `1.00 km`.

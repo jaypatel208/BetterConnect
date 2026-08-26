@@ -136,35 +136,62 @@ and the queue is non-empty, it re-issues the head of the queue `[dex]`.
 
 ## 6. The 65-second disconnect
 
-Observed on this cluster with a third-party client that writes navigation frames but never
-reads `CONTROL` `[hardware]`:
+Reproduced across two independent sessions `[hardware]`:
 
 ```
-ready → disconnect   65.689 s
-ready → disconnect   65.305 s
-ready → disconnect   65.423 s      GATT status 8
+session 1    65.689 s   65.305 s   65.423 s      all GATT status 8
+session 2    65.572 s   65.348 s                 all GATT status 8
 ```
 
-Three intervals within 0.4 s of each other is a deterministic timer, not radio noise. Two
-facts constrain the diagnosis:
+Five occurrences inside a 0.4 s spread. This is a timer, not radio conditions.
 
-- **BLE's maximum supervision timeout is 32 s**, so this is not a link-layer timeout.
-- One drop occurred **while frames were actively being written**, so it is not a simple
-  write-inactivity timeout.
+### Is it the cluster, or is it our client?
 
-The client differed from the official app in exactly these ways, which is the ranked
-candidate list `[inferred]`:
+A reasonable suspicion, since the official app holds the link indefinitely on the same
+hardware. The evidence available so far points at the cluster, on three grounds:
 
-1. **It never read `CONTROL`.** The 700 ms read pump is the only continuous traffic the
-   official app generates, and it runs regardless of navigation state.
-2. **It never sent a `GENERAL` packet**, so the cluster never saw the incrementing
-   heartbeat byte (`PROTOCOL.md` §GENERAL, byte 54).
-3. **It wrote with the wrong write type** (§4).
-4. It never called `requestMtu` explicitly, nor set connection priority.
+1. **The status code distinguishes the two cases.** When our own client tears down a link it
+   produces **status 0** — visible in the log at the moment the user pressed Connect and the
+   old GATT was closed. Every 65 s drop is **status 8**, `GATT_CONN_TIMEOUT`, which the
+   Android stack reports when the *link* dies, not when the application closes it.
+2. **No 65 s timer exists in our client.** Its only timers are a 350 ms write heartbeat and
+   a 3 s reconnect backoff.
+3. **Write volume is irrelevant to it.** In session 2 the first window carried a single
+   frame in 65 s (one-shot mode, `sent` went 1 → 2 across 40 s); a later window carried a
+   frame every 350 ms. Both dropped at the same 65 s. A client-side fault driven by
+   traffic would not behave identically at 0.02 and 3.5 writes per second.
 
-All four are cheap to satisfy together. Satisfy them all first, confirm the link holds, then
-bisect if the cause matters. **This is unresolved** — it is a hypothesis with good evidence,
-not a finding.
+Two constraints bound the diagnosis further: **BLE's maximum supervision timeout is 32 s**,
+so this cannot be a link-layer timeout configured by either side; and one drop occurred
+mid-write, so it is not a write-inactivity timeout.
+
+This is evidence, not proof. It is **unresolved**.
+
+### A real defect in our diagnostic client, found while investigating
+
+`ClusterService` — the foreground service of type `connectedDevice` — **is written but never
+started.** Nothing calls `ClusterService.start()`. The client therefore holds its GATT link
+from a plain application scope with no foreground service and no wake lock.
+
+That is a genuine bug and must be fixed. It is unlikely to be *this* bug: the drops occurred
+with the screen on and the app in the foreground, where Doze does not apply. But it should
+be eliminated before the cause is declared cluster-side.
+
+### What the official app does that ours does not
+
+The ranked candidate list, unchanged by the new data:
+
+1. **It never reads `CONTROL`.** The 700 ms read pump is the only continuous traffic the
+   official app generates, and it runs regardless of navigation state. A TI peripheral that
+   never sees its controller poll may reasonably treat the client as dead.
+2. **It never sends `GENERAL`**, so the cluster never sees the incrementing heartbeat byte.
+3. **It writes with the wrong write type.** Every writable characteristic here advertises
+   `WRITE` only, so Write Request is correct; our client sends Write Commands (§4).
+   Worth noting: the writes still land — icons change — so the peripheral tolerates them.
+4. **No foreground service** (above), and no explicit connection priority.
+
+Fix all four, confirm the link holds, then bisect. Until then, no single cause is
+established.
 
 ## 7. `CONNECTION_PRIORITY_HIGH` causes status 8
 
