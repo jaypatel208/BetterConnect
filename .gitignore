@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# Gradle
+# ---------------------------------------------------------------------------
+.gradle/
+build/
+# The wrapper JAR and properties MUST be committed - the build is not
+# reproducible without them.
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# ---------------------------------------------------------------------------
+# Local machine configuration - never commit, contains absolute paths
+# ---------------------------------------------------------------------------
+local.properties
+.kotlin/
+
+# ---------------------------------------------------------------------------
+# Secrets and signing material
+# ---------------------------------------------------------------------------
+# API keys (Maps / Routes) belong here, injected via the secrets Gradle plugin.
+secrets.properties
+keystore.properties
+signing.properties
+*.jks
+*.keystore
+*.p12
+*.pepk
+# google-services.json is often committed, but it identifies your Firebase
+# project. Uncomment if this repo ever goes public.
+# google-services.json
+
+# ---------------------------------------------------------------------------
+# Build outputs
+# ---------------------------------------------------------------------------
+*.apk
+*.aab
+*.aar
+*.ap_
+*.dex
+*.class
+release/
+captures/
+output-metadata.json
+lint-results*.html
+lint-results*.xml
+lint-results*.txt
+lint-baseline.xml
+
+# ---------------------------------------------------------------------------
+# Native build
+# ---------------------------------------------------------------------------
+.externalNativeBuild/
+.cxx/
+obj/
+
+# ---------------------------------------------------------------------------
+# IDE
+# ---------------------------------------------------------------------------
+# .idea holds absolute paths and per-user state. Ignored wholesale; add
+# explicit negations if you ever want to share code style or inspections.
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# ---------------------------------------------------------------------------
+# Reverse engineering working files
+# ---------------------------------------------------------------------------
+# Vendor binaries are third-party and far over GitHub's file size limit.
+# docs/README.md documents how to regenerate all of this from the APK.
+*.xapk
+*.hbc
+jadx*/
+decompiled*.js
+bundle*.js
+
+# ---------------------------------------------------------------------------
+# OS and editor noise
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+
+# ---------------------------------------------------------------------------
+# Logs, crash dumps, temp
+# ---------------------------------------------------------------------------
+*.log
+*.hprof
+*.tmp

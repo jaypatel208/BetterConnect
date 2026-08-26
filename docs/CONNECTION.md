@@ -1,0 +1,232 @@
+# Cluster link — connection contract
+
+How a phone establishes and keeps a BLE link to the Bajaj instrument cluster.
+
+**Evidence tags** — every claim is tagged:
+`[hardware]` observed on the bike · `[dex]` native Java in `classes3.dex` ·
+`[js]` the React Native bundle · `[inferred]` reasoned, not verified.
+
+This document describes **what the cluster requires**. Where the official app's technique
+is worth knowing it is quoted as evidence, and where it is bad practice that is said
+plainly — we copy constraints, never technique. See `IMPLEMENTATION.md` for how to build
+this well.
+
+---
+
+## 1. Link model
+
+The cluster is a **BLE GATT peripheral** on a **Texas Instruments CC26xx** `[hardware]`
+(vendor UUIDs carry `0451`, TI's identifier). The phone is central.
+
+This is not Bluetooth Classic and not A2DP/HFP, which is why the cluster never appears as a
+connected device in Android's Bluetooth settings and why it "only works through their app":
+a BLE GATT connection is owned by the app process, established with `connectGatt`, and dies
+with the app. Nothing to pair in the usual sense.
+
+Your bike may *also* hold a separate Classic link for call audio and media. That is
+independent of everything in this document.
+
+**The link is bidirectional** `[dex]` `[hardware]`. An earlier draft of this document
+claimed it was write-only. That was wrong, and it was wrong because it was written from the
+JS layer, which only drives navigation. The cluster talks back on `CONTROL` — see §5.
+
+### No bonding, no authentication
+
+- `createBond` is never called by the app `[dex]` `[js]`.
+- No challenge/response, no pairing token, no key exchange gates writes `[dex]`.
+- Writes succeeded on first connection with no bond `[hardware]`.
+
+## 2. Discovery
+
+**No service-UUID scan filter.** The app scans unfiltered and matches on the **advertised
+device name**, case-insensitively by substring `[js]`:
+
+```
+name.lowercase() contains "pulsar" | "freedom" | "dominar"
+```
+
+Native additionally derives the vehicle type from the GATT device name on connect
+(`VehicleType.fromDeviceName`) `[dex]`.
+
+Do not filter the scan by service UUID: there is no evidence the cluster advertises it, and
+a filtered scan that finds nothing is indistinguishable from a cluster that is switched off.
+
+Cache the MAC after the first successful connection and reconnect to it directly.
+
+## 3. Connect sequence — mandatory ordering
+
+This is the contract. Deviating from it is what produces the 65-second drop in §6.
+
+```
+connectGatt(autoConnect = false, TRANSPORT_LE)
+  │
+  ├─ onConnectionStateChange(STATE_CONNECTED)                     [dex]
+  │     requestConnectionPriority(BALANCED)      ← API 35+; never HIGH, see §7
+  │     wait 300 ms                              ← "BALANCED renegotiation window"
+  │     discoverServices()
+  │     … and at connect + 1200 ms: start the CONTROL read pump (§5)
+  │
+  ├─ onServicesDiscovered                                          [dex]
+  │     bind characteristic handles
+  │     requestMtu(256)
+  │     clear read and write queues
+  │     arm a 2500 ms fallback that force-enables writes if onMtuChanged never fires
+  │
+  └─ onMtuChanged                                                  [dex]
+        isMTUIncreased = true        ← WRITES ARE BLOCKED UNTIL THIS POINT
+        push initial status packet
+```
+
+**Writes are MTU-gated** `[dex]`. The vendor's `prepareCharAndWrite` refuses outright:
+
+```
+if (!GlobalVar.isMTUIncreased) { log "skipping write because MTU not increased"; return; }
+```
+
+Requesting 256 is not arbitrary caution — a 48-byte navigation frame needs an ATT MTU of at
+least 51, and the larger packets need more. Observed negotiated MTU on this cluster is
+**247** `[hardware]`, so there is ample headroom once the exchange completes.
+
+## 4. Write type — chosen per characteristic, not fixed
+
+The vendor selects the write type from the characteristic's own advertised properties
+`[dex]`:
+
+```java
+return (isPlaylistChar || (properties & PROPERTY_WRITE) != 0
+                       || (properties & PROPERTY_WRITE_NO_RESPONSE) == 0)
+       ? WRITE_TYPE_DEFAULT      // Write Request, acknowledged at ATT level
+       : WRITE_TYPE_NO_RESPONSE; // Write Command, fire and forget
+```
+
+| Characteristic advertises | Write type used |
+|---|---|
+| `WRITE` only | **Write Request** (`WRITE_TYPE_DEFAULT`) |
+| `WRITE` and `WRITE_NO_RESPONSE` | **Write Request** |
+| `WRITE_NO_RESPONSE` only | Write Command |
+
+**On this cluster every writable characteristic advertises `WRITE` and not
+`WRITE_NO_RESPONSE`** `[hardware]`. Therefore the correct write type for all of them is
+**Write Request**.
+
+This matters. A Write Command sent to a characteristic that only supports Write Request has
+undefined handling — some land, some are discarded, and there is no error surfaced to the
+application. That is consistent with the "signal fading away" seen in the field
+`[hardware]`.
+
+Do not hardcode a write type. Read the properties and choose, exactly as above.
+
+## 5. The return channel — `CONTROL`
+
+`0A10676e-6972-6565-6e69-676e4543544f`, 20 bytes, cluster → phone. This is how the rider's
+cluster button presses reach the phone. Payload layout is in `PROTOCOL.md`.
+
+The vendor tries notifications first, then falls back to polling `[dex]`:
+
+- `setCharacteristicNotification(CONTROL_CHAR, true)` plus a CCCD descriptor write.
+  It logs `CONTROL CCCD descriptor missing` when the descriptor is absent.
+- **A `scheduleAtFixedRate` read of `CONTROL` every 700 ms**, started 1200 ms after connect
+  and running for the whole session.
+
+**On this cluster `CONTROL` is `[READ]` with no `NOTIFY` property** `[hardware]`, so
+notifications are unavailable and **the 700 ms polled read is the only option**.
+
+The same 700 ms tick doubles as a write-stall watchdog: if no write has completed in 3000 ms
+and the queue is non-empty, it re-issues the head of the queue `[dex]`.
+
+## 6. The 65-second disconnect
+
+Observed on this cluster with a third-party client that writes navigation frames but never
+reads `CONTROL` `[hardware]`:
+
+```
+ready → disconnect   65.689 s
+ready → disconnect   65.305 s
+ready → disconnect   65.423 s      GATT status 8
+```
+
+Three intervals within 0.4 s of each other is a deterministic timer, not radio noise. Two
+facts constrain the diagnosis:
+
+- **BLE's maximum supervision timeout is 32 s**, so this is not a link-layer timeout.
+- One drop occurred **while frames were actively being written**, so it is not a simple
+  write-inactivity timeout.
+
+The client differed from the official app in exactly these ways, which is the ranked
+candidate list `[inferred]`:
+
+1. **It never read `CONTROL`.** The 700 ms read pump is the only continuous traffic the
+   official app generates, and it runs regardless of navigation state.
+2. **It never sent a `GENERAL` packet**, so the cluster never saw the incrementing
+   heartbeat byte (`PROTOCOL.md` §GENERAL, byte 54).
+3. **It wrote with the wrong write type** (§4).
+4. It never called `requestMtu` explicitly, nor set connection priority.
+
+All four are cheap to satisfy together. Satisfy them all first, confirm the link holds, then
+bisect if the cause matters. **This is unresolved** — it is a hypothesis with good evidence,
+not a finding.
+
+## 7. `CONNECTION_PRIORITY_HIGH` causes status 8
+
+The vendor's own code carries this `[dex]`:
+
+```
+onServicesDiscovered: keeping CONNECTION_PRIORITY_BALANCED
+                      (API 35+ — avoid HIGH renegotiation / status=8 loop)
+```
+
+They request `BALANCED` on connect for API 35+, wait 300 ms, and deliberately do **not**
+escalate to `HIGH` after discovery. On API < 35 they do request `HIGH` (priority `1`).
+
+Use `BALANCED`. The 350 ms navigation cadence does not need a faster connection interval.
+
+## 8. One central at a time
+
+A BLE peripheral typically accepts one connection, and on Android the GATT link is held per
+process. While the official Bajaj app is connected, another app cannot connect, and vice
+versa `[inferred]`, consistent with field behaviour.
+
+- Force-stop the official app before connecting.
+- Expect the first attempt after switching apps to fail while the previous link tears down.
+- Never run two clients with auto-connect enabled; the symptom is indistinguishable from
+  random disconnects.
+
+## 9. Reconnection
+
+The vendor schedules an auto-reconnect on every unexpected drop, tagged with the GATT status
+(`scheduleAutoReconnect("gatt_drop_status_8")`), tracks `reconnectAttempt`, and cancels any
+pending attempt on a successful connect `[dex]`. On disconnect it clears `isMTUIncreased`,
+empties all queues, resets the CONTROL bootstrap state, and releases its wake lock.
+
+A reconnect must repeat §3 in full. MTU and notification state do not survive a drop.
+
+## 10. Staying alive in the background
+
+The vendor runs a foreground service holding a CPU wake lock, with a notification string
+reading `keeps Timer + BLE writes alive during Doze` `[dex]`.
+
+Any real client needs a foreground service of type `connectedDevice`: a 700 ms read pump and
+a sub-second write cadence do not survive Doze or aggressive OEM battery management
+otherwise.
+
+## 11. Permissions
+
+```
+BLUETOOTH_SCAN      (API 31+, neverForLocation if you don't derive location from scans)
+BLUETOOTH_CONNECT   (API 31+)
+ACCESS_FINE_LOCATION (API 30 and below — required for BLE scanning)
+FOREGROUND_SERVICE
+FOREGROUND_SERVICE_CONNECTED_DEVICE
+POST_NOTIFICATIONS  (API 33+)
+```
+
+The vendor re-checks `BLUETOOTH_CONNECT` before every GATT operation on API 31+ `[dex]`;
+a revoked permission mid-session otherwise throws from the callback thread.
+
+## 12. Open questions
+
+- Which of the four candidates in §6 actually causes the 65 s drop. **Open.**
+- Whether the cluster tolerates a slower CONTROL poll than 700 ms, and what the real
+  deadline is. **Open.**
+- Whether `CONTROL` exposes `NOTIFY` on any other cluster firmware, making polling
+  unnecessary. **Open.**
