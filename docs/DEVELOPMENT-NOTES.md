@@ -97,3 +97,10 @@ Reading their code is useful. Copying it is not.
   observation may simply have been the 65 s disconnect clearing the display.
 - [ ] **D4** — Why our text does not render when the frame is provably correct. See B3.
 - [ ] **D5** — `O` vs `P` u-turn handedness.
+- [x] **D6** — **Resolved 2026-08-28**: how to acquire `MISSED_CALL`/`ALERTS_INFO` permission
+  support without the raw dangerous permissions Google Play's 2026 policy blocks for a non-
+  default-handler app. Decision: `CallScreeningService` + `READ_PHONE_STATE` for call state,
+  `NotificationListenerService` for message/text alerts, `READ_CONTACTS` for caller-name
+  resolution — none of these are `READ_SMS`/`READ_CALL_LOG`. Acquired in the `full` onboarding
+  flow (enhanced set, non-blocking) ahead of the features that consume them. See
+  `.claude/rules/protocol.md` Permissions section and `docs/IMPLEMENTATION.md` §6.

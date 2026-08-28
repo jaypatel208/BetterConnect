@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      diag only needs ACCESS_FINE_LOCATION below API 31 for scanning (core/ble's manifest caps
+      it at maxSdk 30). full also runs its own Routes-API guidance loop, which needs it
+      unconditionally - this entry overrides the merged maxSdk-capped one for the same name.
+    -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:node="replace" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Enhanced set: requested in onboarding, never blocks reaching the app. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <application>
+        <!--
+          ClusterService also runs the guidance loop, so it touches both connectedDevice
+          (the BLE link) and location (position tracking while navigating).
+        -->
+        <service
+            android:name=".ClusterService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|location"
+            tools:replace="android:foregroundServiceType" />
+
+        <!--
+          Settings-granted roles, no runtime dialog. Registered so they are visible and
+          grantable from onboarding; the frame-sending logic is future work.
+        -->
+        <service
+            android:name="dev.jay.betterconnect.core.ble.CallScreeningRoleService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="dev.jay.betterconnect.core.ble.ClusterNotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

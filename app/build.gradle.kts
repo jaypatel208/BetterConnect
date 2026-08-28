@@ -54,6 +54,11 @@ dependencies {
     "diagImplementation"(project(":feature:signals"))
     "diagImplementation"(project(":feature:log"))
 
+    "fullImplementation"(project(":feature:onboarding"))
+    "fullImplementation"(libs.androidx.navigation3.runtime)
+    "fullImplementation"(libs.androidx.navigation3.ui)
+    "fullImplementation"(libs.androidx.lifecycle.viewmodel.navigation3)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)

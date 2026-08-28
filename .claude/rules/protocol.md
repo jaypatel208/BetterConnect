@@ -177,7 +177,23 @@ Everything runs inside a foreground service of type `connectedDevice` with a CPU
 700 ms read pump and sub-second writes do not survive Doze or OEM battery management. (Diag
 defect A1: `ClusterService` exists but nothing calls `start()`.)
 
-## Permissions — the complete set, and it stays this small
+## Permissions
+
+<!--
+Failure: this rule originally said "navigation needs no call/SMS/contact permission, keep it
+that way" and treated MISSED_CALL/ALERTS_INFO as permissions to request later, scoped to that
+feature. Two things it got wrong: (1) it didn't check that Google Play's 2026 policy blocks
+READ_SMS/READ_CALL_LOG for any app that isn't the default SMS/Phone/Assistant handler - so the
+"request them later" plan was never viable as written; (2) the user wants the full legitimate
+permission/access surface acquired in the onboarding phase, once, not feature-by-feature.
+Why: re-litigating the permission set every time a new frame gets wired up is how an app ends up
+with a permission request flow scattered across five different screens and inconsistent Settings
+deep-links.
+Outcome: required set (below) gates onboarding; enhanced set is requested in the same flow but
+does not block. Verified against developer.android.com and Play policy pages, 2026-08-28.
+-->
+
+### Required — gates the onboarding flow, the app cannot function without these
 
 ```
 BLUETOOTH_SCAN                      API 31+, with neverForLocation
@@ -186,13 +202,33 @@ ACCESS_FINE_LOCATION                API 30 and below for scanning; always, for o
                                     guidance loop
 FOREGROUND_SERVICE
 FOREGROUND_SERVICE_CONNECTED_DEVICE
+FOREGROUND_SERVICE_LOCATION         API 34+ - ClusterService runs the guidance loop in the
+                                    same foreground service as the BLE link, so it declares
+                                    foregroundServiceType="connectedDevice|location"
 POST_NOTIFICATIONS                  API 33+
 ```
 
-Navigation needs **no** call, contact, SMS or notification-listener permission. Keep it that way:
-rider-input features would drag in `ANSWER_PHONE_CALLS`, `SEND_SMS`, `READ_CONTACTS`,
-`READ_CALL_LOG`, `READ_PHONE_STATE` and notification-listener access, with Play policy
-consequences.
+### Enhanced — requested in the same onboarding flow, never blocks reaching the app
+
+```
+READ_PHONE_STATE                    runtime permission - ring-state for MISSED_CALL (0310)
+READ_CONTACTS                       runtime permission - resolve a ringing number to a name
+Notification access                 Settings-granted role (NotificationListenerService) -
+                                    source for ALERTS_INFO (0410) custom-text/message alerts
+Caller ID & spam apps role          Settings-granted role (CallScreeningService) - confirms
+                                    a call was missed vs. answered
+```
+
+`CallScreeningService`/`NotificationListenerService` have no runtime permission dialog — the user
+grants them from Settings, which the app can only deep-link to and re-check on `ON_RESUME`.
+
+**Never requested, permanently:** `CAMERA`, `GET_ACCOUNTS`, `READ_SMS`/`RECEIVE_SMS`,
+`READ_CALL_LOG`. The first two map to vendor features (GeoFence anti-theft, music, account sync)
+that don't exist in this protocol's scope. The last two are blocked outright by Play's 2026
+default-handler policy for an app that isn't the default SMS/Phone/Assistant handler — becoming
+that handler is out of scope. `CallScreeningService`/`READ_PHONE_STATE` and
+`NotificationListenerService` cover the same protocol frames (`MISSED_CALL`, `ALERTS_INFO`)
+without that restriction.
 
 ## The unresolved one
 

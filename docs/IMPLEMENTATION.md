@@ -244,18 +244,41 @@ Acknowledge in `GENERAL` bytes 4–17, respecting the two ack styles (mirror vs 
 
 ## 6. Permissions
 
+Required — the app cannot function without these, and they gate the onboarding flow:
+
 ```
-BLUETOOTH_SCAN            API 31+, neverForLocation
-BLUETOOTH_CONNECT         API 31+
-ACCESS_FINE_LOCATION      API 30 and below, for scanning
-ACCESS_FINE_LOCATION      always, if you do your own guidance loop
+BLUETOOTH_SCAN                API 31+, neverForLocation
+BLUETOOTH_CONNECT              API 31+
+ACCESS_FINE_LOCATION           always — API 30 and below for scanning, and unconditionally
+                                for our own Routes-API guidance loop
 FOREGROUND_SERVICE
 FOREGROUND_SERVICE_CONNECTED_DEVICE
-POST_NOTIFICATIONS        API 33+
+FOREGROUND_SERVICE_LOCATION    API 34+ — ClusterService runs the guidance loop in the same
+                                foreground service as the BLE link, so it must declare both
+                                foregroundServiceType values ("connectedDevice|location")
+POST_NOTIFICATIONS             API 33+
 ```
 
-Navigation needs no call, contact, SMS or notification-listener permission. Keep it that
-way for as long as possible — `SIGNALS.md` §5 covers what adding them would cost.
+Enhanced — requested in the same onboarding flow but does not block reaching the app, since
+Android has no runtime dialog for the two special-access roles:
+
+```
+READ_PHONE_STATE               runtime permission — ring-state for MISSED_CALL (0310)
+READ_CONTACTS                  runtime permission — resolve a ringing number to a name
+Notification access            Settings-granted role (NotificationListenerService) —
+                                source for ALERTS_INFO (0410) custom-text/message alerts
+Caller ID & spam apps role     Settings-granted role (CallScreeningService) — confirms a
+                                call was missed vs. answered
+```
+
+`READ_SMS`/`RECEIVE_SMS`/`READ_CALL_LOG` are **never requested** — as of Google Play's 2026
+policy, only an app registered as the device's default SMS/Phone/Assistant handler may declare
+them, and becoming that handler is out of scope for a cluster-relay app. `NotificationListenerService`
+and `CallScreeningService` are the correct 2026-era replacements and cover the same protocol
+frames without that restriction. `CAMERA`, `GET_ACCOUNTS` and broad phonebook sync are not
+requested at all — nothing in this app's protocol scope needs them; the vendor app uses them for
+GeoFence anti-theft, music and account sync, none of which we build. See `.claude/rules/
+protocol.md` for the full table and the sourcing.
 
 Re-check `BLUETOOTH_CONNECT` before GATT operations on API 31+; a revoked permission
 otherwise throws from a callback thread.
