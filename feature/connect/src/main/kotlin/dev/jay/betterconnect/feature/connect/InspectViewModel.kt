@@ -7,6 +7,7 @@ import dev.jay.betterconnect.core.data.ClusterController
 import dev.jay.betterconnect.core.link.WriteStats
 import dev.jay.betterconnect.core.model.ConnectionState
 import dev.jay.betterconnect.core.model.GattDump
+import dev.jay.betterconnect.core.model.UnsupportedReason
 import dev.jay.betterconnect.core.protocol.ClusterProtocol
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -50,9 +51,7 @@ data class InspectUiState(
 }
 
 @HiltViewModel
-class InspectViewModel @Inject constructor(
-    private val controller: ClusterController,
-) : ViewModel() {
+class InspectViewModel @Inject constructor(private val controller: ClusterController) : ViewModel() {
 
     val uiState: StateFlow<InspectUiState> = combine(
         controller.state,
@@ -92,7 +91,7 @@ class InspectViewModel @Inject constructor(
     private fun verdictOf(connection: ConnectionState, dump: GattDump?): Verdict = when {
         connection is ConnectionState.Unsupported -> when (connection.reason) {
             dev.jay.betterconnect.core.model.UnsupportedReason.SERVICE_MISSING -> Verdict.SERVICE_MISSING
-            dev.jay.betterconnect.core.model.UnsupportedReason.CHARACTERISTIC_MISSING -> Verdict.CHARACTERISTIC_MISSING
+            UnsupportedReason.CHARACTERISTIC_MISSING -> Verdict.CHARACTERISTIC_MISSING
             dev.jay.betterconnect.core.model.UnsupportedReason.NOT_WRITABLE -> Verdict.NOT_WRITABLE
             dev.jay.betterconnect.core.model.UnsupportedReason.MTU_TOO_SMALL -> Verdict.MTU_TOO_SMALL
         }

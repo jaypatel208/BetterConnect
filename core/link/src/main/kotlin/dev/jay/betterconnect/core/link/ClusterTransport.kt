@@ -40,12 +40,7 @@ enum class WriteOutcome {
     FAILED,
 }
 
-data class WriteStats(
-    val sent: Int = 0,
-    val dropped: Int = 0,
-    val failed: Int = 0,
-    val notReady: Int = 0,
-) {
+data class WriteStats(val sent: Int = 0, val dropped: Int = 0, val failed: Int = 0, val notReady: Int = 0) {
     val attempted: Int get() = sent + dropped + failed + notReady
 }
 

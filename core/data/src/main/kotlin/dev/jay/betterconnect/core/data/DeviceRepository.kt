@@ -17,9 +17,7 @@ private val Context.dataStore by preferencesDataStore(name = "better_connect")
  * does the same, keyed by chassis number; keyed by address is enough for one bike.
  */
 @Singleton
-class DeviceRepository @Inject constructor(
-    @param:ApplicationContext private val context: Context,
-) {
+class DeviceRepository @Inject constructor(@param:ApplicationContext private val context: Context) {
     val lastAddress: Flow<String?> =
         context.dataStore.data.map { it[KEY_LAST_ADDRESS] }
 

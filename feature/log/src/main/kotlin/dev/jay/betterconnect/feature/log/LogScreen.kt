@@ -26,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jay.betterconnect.core.designsystem.theme.MonoText
 import dev.jay.betterconnect.core.designsystem.theme.StatusColors
@@ -125,11 +125,18 @@ private fun LogRow(entry: LogEntry) {
     Column(
         Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                RoundedCornerShape(12.dp),
+            )
             .padding(12.dp),
     ) {
         Row {
-            Text(TIME.format(Date(entry.timestampMs)), style = MonoText.small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                TIME.format(Date(entry.timestampMs)),
+                style = MonoText.small,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.padding(horizontal = 4.dp))
             Text(entry.level.name, style = MonoText.small, color = entry.level.color())
             Spacer(Modifier.padding(horizontal = 4.dp))

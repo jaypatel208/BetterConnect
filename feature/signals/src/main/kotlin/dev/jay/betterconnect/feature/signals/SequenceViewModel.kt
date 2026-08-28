@@ -39,9 +39,7 @@ sealed interface SequenceAction {
 }
 
 @HiltViewModel
-class SequenceViewModel @Inject constructor(
-    private val controller: ClusterController,
-) : ViewModel() {
+class SequenceViewModel @Inject constructor(private val controller: ClusterController) : ViewModel() {
 
     private val selectedId = MutableStateFlow(SequenceScripts.ROUTE_WALK.id)
     private val dwell = MutableStateFlow(SequenceScripts.ROUTE_WALK.defaultDwellMs)

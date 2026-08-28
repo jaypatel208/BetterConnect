@@ -70,7 +70,11 @@ object TbtDecoder {
         val frame = DecodedFrame(
             symbolCode = buffer[1].toInt() and 0xFF,
             turn = DistanceCodec.readFrom(buffer, 2, isMetres = flags and TbtEncoder.FLAG_TURN_METRES != 0),
-            total = DistanceCodec.readFrom(buffer, 8, isMetres = flags2 and TbtEncoder.FLAG2_TOTAL_METRES != 0),
+            total = DistanceCodec.readFrom(
+                buffer,
+                8,
+                isMetres = flags2 and TbtEncoder.FLAG2_TOTAL_METRES != 0,
+            ),
             etaHour12 = byte7 and 0x0F,
             etaMinute = buffer[6].toInt() and 0xFF,
             isPm = flags and TbtEncoder.FLAG_PM != 0,
@@ -93,9 +97,8 @@ object TbtDecoder {
 }
 
 /** Hex rendering for the diagnostic log and the on-screen frame view. */
-fun ByteArray.toHexGroups(perLine: Int = 16): List<String> =
-    toList().chunked(perLine).map { line ->
-        line.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
-    }
+fun ByteArray.toHexGroups(perLine: Int = 16): List<String> = toList().chunked(perLine).map { line ->
+    line.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
+}
 
 fun ByteArray.toHex(): String = joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }

@@ -18,9 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * cluster would actually have been told rather than against the bytes. Each fault below
  * is a real failure mode documented in CONNECTION.md, made reachable without hardware.
  */
-class FakeClusterTransport(
-    initialState: ConnectionState = ConnectionState.Ready(ADDRESS, DEFAULT_MTU),
-) : DemoCapableTransport {
+class FakeClusterTransport(initialState: ConnectionState = ConnectionState.Ready(ADDRESS, DEFAULT_MTU)) :
+    DemoCapableTransport {
 
     private val _state = MutableStateFlow(initialState)
     override val state: StateFlow<ConnectionState> = _state.asStateFlow()

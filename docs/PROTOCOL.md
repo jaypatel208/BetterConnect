@@ -159,44 +159,44 @@ for us, it renders it wrongly for the official app too — which makes an observ
 more likely explanation. **Re-test by direct comparison:** run the official app to a
 destination about 2.5 km away, note the cluster reading, then send 2500 m from ours.
 
-**Kilometre mode may be wrong.** A frame for 1011 m (which encodes as whole = 1,
-fraction = 1, i.e. `1.01 km`) was reported as displaying roughly **`10 km`** `[hardware]`,
-though the observation is uncertain. If real, the cluster is not reading whole and fraction
-the way this document describes for the km case.
+**Kilometre mode is confirmed correct** `[hardware]`. Verified on the bike: 2500 m displays
+as `2.5 KM`, 8420 m as `8.42 KM`. The earlier `10 km` report was an observation error. The
+whole/fraction encoding in this document is right, and matches the vendor byte-for-byte.
 
-This is **the single highest-priority thing to re-test**, because navigation is unusable if
-distances above 1 km are wrong. Use asymmetric values, which discriminate between the
-candidate interpretations where 1011 does not:
+### Text — the cluster DOES render it
 
-| Send | This spec predicts | If cluster wants tenths in the whole field |
-|---|---|---|
-| 2500 m | `2.50 km` | `250 km` |
-| 1200 m | `1.20 km` | `120 km` |
-| 5750 m | `5.75 km` | `575 km` |
+**Correction.** An earlier revision claimed this cluster had no text field. That was wrong,
+based on one negative observation from our own client. The official app renders street
+names, `Destination reached` and similar cleanly `[hardware]`.
 
-Record exactly what the display shows, digit for digit, including any decimal point.
+Confirmed behaviour `[hardware]`:
 
-### Text — not rendered on this cluster
+- Text and digits both render.
+- **Long text scrolls**, marquee-style, like an LED display board. So the 31-character wire
+  limit is a *transport* limit, not a display-width limit — the cluster will scroll whatever
+  fits in the field.
 
-**The street text field has no visible effect on the Pulsar N160 UG** `[hardware]`. Frames
-carrying `TEST ROAD`, `abc` and single characters were accepted — the ETA, icon and distance
-from the same frames all displayed — but no text appeared anywhere.
+**Our client's text still does not appear, and the cause is not the frame.** A frame built
+by our encoder was compared byte-for-byte against one transcribed directly from
+`NavigationHelper.sendNavigationData` for identical inputs:
 
-Most likely this negative-LCD cluster simply has **no alphanumeric street field**, and the
-31/32-byte text region exists for the TFT clusters on other models `[inferred]`. Bytes
-14–46 should still be populated correctly, but nothing on this bike will show them.
+```
+ours  : 91 41 00 00 f4 01 08 09 28 00 08 00 04 00 09 54 45 53 54 …  9b
+vendor: 91 41 00 00 f4 01 08 09 28 00 08 00 04 00 09 54 45 53 54 …  9b
+        → differing byte indices: NONE
+```
 
-Consequence for navigation: **the rider gets an arrow, a distance and an ETA — no road
-name.** Plan the product around that.
+So the encoding, the offsets, the length byte and the checksum are all correct. The
+remaining difference between our session and the official app's is **session state**: we
+never send `GENERAL` and never read `CONTROL`. The leading hypothesis is that the cluster
+does not enable its text region until it sees a complete client `[inferred]`. **Unresolved
+— re-test after implementing those two.**
 
-The encoding rules below still apply to the wire format:
+Encoding rules (unchanged, and verified against both builders):
 
-`replaceAll("[^0-9a-zA-Z.]", " ").trim()` in both implementations `[dex]` `[js]`. This
-destroys hyphens: `Sarkhej-Gandhinagar Hwy` ships as `Sarkhej Gandhinagar Hwy`. Dots
-survive.
-
-Length differs: JS clips to **31** `[js]`; native truncates to 31 and **appends a `.`**,
-giving **32** bytes across 15..46 `[dex]`. Whether the cluster renders 32 is **untested**.
+`replaceAll("[^0-9a-zA-Z.]", " ").trim()`, then if longer than 31, truncate to 31 and append
+`.`. Length at byte 14, text from byte 15. Note the vendor writes the length byte **only
+when the text is non-empty** `[dex]`.
 
 ### Ending navigation
 

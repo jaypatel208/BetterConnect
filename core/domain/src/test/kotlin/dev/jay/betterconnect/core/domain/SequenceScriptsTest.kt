@@ -98,6 +98,9 @@ class SequenceScriptsTest {
         }
     }
 
-    private fun decodeStep(step: SequenceStep) =
-        (dev.jay.betterconnect.core.protocol.TbtDecoder.decode(encoder.encode(step.nav)) as DecodeResult.Valid).frame
+    private fun decodeStep(step: SequenceStep) = (
+        dev.jay.betterconnect.core.protocol.TbtDecoder.decode(
+            encoder.encode(step.nav),
+        ) as DecodeResult.Valid
+        ).frame
 }

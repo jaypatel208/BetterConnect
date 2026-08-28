@@ -52,9 +52,7 @@ sealed interface SignalsAction {
 }
 
 @HiltViewModel
-class SignalsViewModel @Inject constructor(
-    private val controller: ClusterController,
-) : ViewModel() {
+class SignalsViewModel @Inject constructor(private val controller: ClusterController) : ViewModel() {
 
     private val config = MutableStateFlow(SignalConfig())
     private val selected = MutableStateFlow<Char?>(null)

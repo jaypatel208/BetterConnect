@@ -38,8 +38,12 @@ Established on the bike. These are properties of the cluster, not of any impleme
   on this cluster is `M N S T U W Y`.
 - [ ] **B2 — The GPS bits gate the entire navigation display.** Clearing them removed the
   whole nav area, not an indicator. Always set GPS active while navigating.
-- [ ] **B3 — There is no street-text field.** Text is accepted and never displayed. The
-  rider gets an arrow, a distance and an ETA. Design the product around that.
+- [ ] **B3 — Text renders and long strings scroll** marquee-style `[hardware]`. *(An earlier
+  note here claimed the opposite; that was wrong.)* **But our client's text still does not
+  appear**, and the frame has been proven byte-for-byte identical to the vendor's for the
+  same inputs — so it is not an encoding bug. Leading hypothesis: the cluster does not enable
+  its text region until it sees a complete client (`GENERAL` + `CONTROL` reads). Re-test
+  after A3/A4.
 - [ ] **B4 — Neither roundabout code renders.** `N` and `U` are both inert. Only `B` (rotary)
   draws an arc. See `MANEUVERS.md` §5.
 - [ ] **B5 — One central at a time.** Force-stop the official app first. Two clients with
@@ -75,7 +79,12 @@ Reading their code is useful. Copying it is not.
   31-char text cap; native uses `< 1000` and 32. Do not maintain two encoders.
 - [ ] **C9 — Endianness is not consistent across the protocol.** TBT distances are
   little-endian; `MISSED_CALL` and `ALERTS` timestamps are big-endian.
-- [ ] **C10 — `batteryPercentage` is not a percentage.** It is clamped to 0–3, a 2-bit level.
+- [ ] **C10 — `batteryPercentage` is not a percentage.** It is a **bar count 0–4**, bucketed
+  at 20/40/60/80 %. And **v2 clamps it to 0–3, silently losing the top bar** — a phone above
+  80 % reports the same level as one at 60–80 %. v1 preserves all five. Do not copy the v2
+  clamp.
+- [ ] **C11 — Blinking is defined in the protocol but ignored by this cluster** `[hardware]`.
+  `i` renders identically to `I`. Do not spend effort computing blink forms for this hardware.
 
 ## D. Open engineering questions
 
@@ -86,3 +95,5 @@ Reading their code is useful. Copying it is not.
   those three packets — TBT is identical either way.
 - [ ] **D3** — Whether the cluster latches a frame indefinitely while connected. The one-shot
   observation may simply have been the 65 s disconnect clearing the display.
+- [ ] **D4** — Why our text does not render when the frame is provably correct. See B3.
+- [ ] **D5** — `O` vs `P` u-turn handedness.

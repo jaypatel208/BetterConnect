@@ -3,7 +3,11 @@
 Talks to the Pulsar N160 UG instrument cluster over BLE.
 
 **The protocol is documented in [`docs/`](docs/)** — start with
-[`docs/README.md`](docs/README.md).
+[`docs/README.md`](docs/README.md). `docs/` is authoritative; if this file ever disagrees with
+it, `docs/` is right.
+
+Project conventions for coding agents are in [`CLAUDE.md`](CLAUDE.md) and `.claude/rules/`.
+The design system is specified in [`docs/DESIGN-SYSTEM.md`](docs/DESIGN-SYSTEM.md).
 
 Two flavours:
 
@@ -16,10 +20,11 @@ Both install side by side, and alongside the official Bajaj app.
 
 ## Why it is shaped this way
 
-The cluster link has **no return channel**: it never notifies, never acknowledges, and
-cannot be read. A wrong frame and a dropped frame look identical from the phone, and the
-only observable output is the cluster's own display. Bike time is therefore expensive and
-low-bandwidth.
+The cluster **never acknowledges a write**. It exposes a return channel — `CONTROL`
+(`0A10`), which the official app *reads* on a 700 ms poll — but it does not notify, and
+nothing it returns confirms that a frame was received or understood. So a wrong frame and a
+dropped frame look identical from the phone, and the only observable output is the cluster's
+own display. Bike time is therefore expensive and low-bandwidth.
 
 So the goal is not "build a test app and go debug on the bike". It is **make every failure
 mode reachable in a test on a laptop**, and leave the bike only the questions that are
@@ -66,7 +71,9 @@ can be exhaustive. All the logic that can be wrong lives there.
 ## Build and test
 
 ```bash
-./gradlew test                 # 115 tests across every layer
+./gradlew test                 # 115 tests across every layer - the gate
+./gradlew ktlintCheck          # style
+./gradlew koverHtmlReport      # coverage
 ./gradlew assembleDiagDebug    # the diagnostic APK
 ./gradlew assembleFullDebug
 ```
@@ -88,8 +95,9 @@ and two apps with auto-connect look exactly like random disconnects.
 3. **Signals** → press `I` → a left arrow and `500m` on the cluster. The project is
    de-risked at this point.
 4. Toggle one-shot vs heartbeat → does the display latch, or decay without repetition?
-5. Sweep `A`–`Z` and record what each draws. This produces the definitive icon table for
-   *this* cluster and settles the two questions the APK could not answer: `N` vs `U`
-   roundabouts, and what symbol `Y` is.
+5. Sweep `A`–`Z` and record what each draws.
 
-Findings from step 5 belong back in `docs/MANEUVERS.md` §5.
+The sweep has been run. 19 of 26 codes render; `M N S T U W Y` are inert, neither roundabout
+code (`N`, `U`) draws anything, and `Y` is `FERRY`. See `docs/MANEUVERS.md` §5 — and use the
+`field-test` skill for the session protocol, which explains the differing-text discriminator
+that makes "inert code" distinguishable from "frame never landed".

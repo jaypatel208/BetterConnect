@@ -21,9 +21,7 @@ data class LogUiState(
 }
 
 @HiltViewModel
-class LogViewModel @Inject constructor(
-    private val controller: ClusterController,
-) : ViewModel() {
+class LogViewModel @Inject constructor(private val controller: ClusterController) : ViewModel() {
 
     private val filters = MutableStateFlow(LogLevel.entries.toSet())
 

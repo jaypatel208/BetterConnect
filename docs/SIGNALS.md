@@ -43,14 +43,18 @@ time, roundabout exit number, GPS-active flag, and up to 31 characters of street
 
 **Three hardware constraints discovered in the field, which materially shape the product:**
 
-1. **No street name.** The text field is accepted but never displayed on this cluster
-   `[hardware]`. The rider gets an arrow, a distance and an ETA — nothing else.
+1. **Text renders, and long text scrolls** marquee-style `[hardware]`. This is a
+   **first-class output, not a nice-to-have**: the cluster's icons are ambiguous at a glance,
+   and the text field is how we resolve that. Every manoeuvre gets a short caption —
+   `KEEP RIGHT` rather than a fork glyph the rider has to interpret. See
+   `IMPLEMENTATION.md` §4.
+   Our client's text does not appear yet, though the frame is provably identical to the
+   vendor's. **Unresolved, and blocking the product's main differentiator.**
 2. **No roundabout icon.** Both roundabout codes (`N`, `U`) are inert `[hardware]`.
    Roundabouts must degrade to a turn direction, or possibly `A`/`B` if that arc turns out
    to be the rotary pictogram.
-3. **Kilometre distances may be mis-rendered.** Metres are confirmed correct; a km-mode
-   value was reported displaying wrongly. **Unresolved and blocking** — navigation is
-   unusable if distances above 1 km are wrong. See `PROTOCOL.md` §4.
+3. **Distances are confirmed correct in both units** `[hardware]` — 2500 m shows as
+   `2.5 KM`, 8420 m as `8.42 KM`. The earlier concern was an observation error.
 4. **The GPS bits gate the whole display** `[hardware]`. Clear them and the navigation area
    disappears entirely. Always set GPS active while navigating.
 
@@ -135,14 +139,34 @@ would never see what is playing.
 
 **Recommendation: defer.** Poor value until `0610` is confirmed on some cluster.
 
-## 7. Custom text and weather — not supported
+## 7. Custom text and weather — feasible
 
-There is no general-purpose text characteristic. Every string field is bound to a semantic
-slot: street name in `TBT_INFO`, caller name in `GENERAL`, message body in `ALERTS_INFO`.
+**Revised.** The cluster renders text and scrolls long strings `[hardware]`, so arbitrary
+text is genuinely deliverable. There is no dedicated "custom text" characteristic, but two
+existing channels carry free-form strings:
 
-Arbitrary text could be smuggled into the navigation street field or the alerts body, but
-the cluster will frame it as navigation or as a message. There is no clean way to render
-"22°C, rain later" as its own thing. **Not worth pursuing** `[inferred]`.
+| Channel | Capacity | Framing the rider sees |
+|---|---|---|
+| `ALERTS_INFO` `0410` | 32 chars | an SMS / WhatsApp style alert |
+| `TBT_INFO` street field | 31 chars, scrolling | part of the navigation display |
+
+**`ALERTS_INFO` is the better vehicle.** The v1 frame is trivially simple `[dex]` — no
+checksum, no timestamp:
+
+```
+byte 0     alert type: 1 = SMS, 2 = WhatsApp
+byte 1     text length, <= 32
+bytes 2..  text, UTF-8
+           (40 bytes total, remainder unused)
+```
+
+The rider confirmed SMS alerts already display on this cluster `[hardware]`. So "22 C, rain
+later" can be pushed as an alert today, once the alert queue mechanism is implemented — the
+cluster *pulls* records by incrementing `alertGet` on `CONTROL`, so a client must hold a
+queue and serve one per request (`PROTOCOL.md` §5).
+
+Caveat: it will be framed as a message, not as its own widget. There is no way to change
+that.
 
 ## 8. Firmware update — do not touch
 

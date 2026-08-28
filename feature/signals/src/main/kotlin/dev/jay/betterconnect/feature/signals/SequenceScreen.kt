@@ -27,7 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jay.betterconnect.core.designsystem.component.Advisory
 import dev.jay.betterconnect.core.designsystem.component.SectionCard
@@ -133,11 +133,7 @@ fun SequenceScreen(
 }
 
 @Composable
-private fun ScriptCard(
-    script: SequenceScript,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
+private fun ScriptCard(script: SequenceScript, selected: Boolean, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -159,7 +155,11 @@ private fun ScriptCard(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
-            Text("${script.steps.size} steps", style = MonoText.small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "${script.steps.size} steps",
+                style = MonoText.small,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(Modifier.height(4.dp))
         Text(

@@ -17,7 +17,6 @@ object ClusterLink {
     const val RECONNECT_DELAY_MS: Long = 3_000L
 
     fun reduce(state: ConnectionState, event: LinkEvent): LinkTransition = when (event) {
-
         is LinkEvent.ConnectRequested -> LinkTransition(
             state = ConnectionState.Connecting(event.address),
             commands = listOf(LinkCommand.Connect(event.address)),
@@ -62,7 +61,9 @@ object ClusterLink {
 
         is LinkEvent.ServicesResolved -> {
             val dump = event.dump
-            val service = dump.services.firstOrNull { it.uuid.equalsIgnoreCase(ClusterProtocol.SERVICE_UUID.toString()) }
+            val service = dump.services.firstOrNull {
+                it.uuid.equalsIgnoreCase(ClusterProtocol.SERVICE_UUID.toString())
+            }
             val characteristic = service?.characteristics?.firstOrNull { it.isTbtInfo }
 
             val reason = when {

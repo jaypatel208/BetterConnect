@@ -8,8 +8,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dev.jay.betterconnect.core.data.ClusterController
 import dev.jay.betterconnect.core.model.ConnectionState

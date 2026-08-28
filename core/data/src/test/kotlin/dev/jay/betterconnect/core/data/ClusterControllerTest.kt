@@ -1,9 +1,9 @@
 package dev.jay.betterconnect.core.data
 
+import dev.jay.betterconnect.core.domain.DiagLog
 import dev.jay.betterconnect.core.domain.LogLevel
 import dev.jay.betterconnect.core.domain.SequenceRunner
 import dev.jay.betterconnect.core.domain.SequenceScripts
-import dev.jay.betterconnect.core.domain.DiagLog
 import dev.jay.betterconnect.core.link.SendMode
 import dev.jay.betterconnect.core.link.WriteScheduler
 import dev.jay.betterconnect.core.model.ConnectionState
@@ -15,8 +15,8 @@ import dev.jay.betterconnect.core.protocol.TbtFrame
 import dev.jay.betterconnect.core.testing.FakeClusterTransport
 import dev.jay.betterconnect.core.testing.FakeDeviceScanner
 import dev.jay.betterconnect.core.testing.TestClocks
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -243,10 +243,7 @@ class ClusterControllerTest {
         assertTrue(f.log.entries.value.any { it.level == LogLevel.ERROR })
     }
 
-    private fun nav(
-        symbol: Symbol = Symbol.LEFT,
-        distanceToTurnM: Int = 500,
-    ) = NavState(
+    private fun nav(symbol: Symbol = Symbol.LEFT, distanceToTurnM: Int = 500) = NavState(
         symbol = symbol,
         distanceToTurnM = distanceToTurnM,
         distanceLeftM = 6_000,

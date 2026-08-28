@@ -196,11 +196,7 @@ class BleClusterTransport @Inject constructor(
             dispatch(LinkEvent.ServicesResolved(dump))
         }
 
-        override fun onCharacteristicWrite(
-            g: BluetoothGatt,
-            c: BluetoothGattCharacteristic,
-            status: Int,
-        ) {
+        override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
             inFlight = false
             if (status != BluetoothGatt.GATT_SUCCESS) Log.w(TAG, "write failed status=$status")
         }
@@ -233,10 +229,18 @@ private fun BluetoothGatt.toDump(mtu: Int): GattDump = GattDump(
 private fun Int.describeProperties(): List<String> = buildList {
     if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_READ != 0) add("READ")
     if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0) add("WRITE")
-    if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0) add("WRITE_NO_RESPONSE")
+    if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE !=
+        0
+    ) {
+        add("WRITE_NO_RESPONSE")
+    }
     if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) add("NOTIFY")
     if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0) add("INDICATE")
     if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_BROADCAST != 0) add("BROADCAST")
-    if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE != 0) add("SIGNED_WRITE")
+    if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE !=
+        0
+    ) {
+        add("SIGNED_WRITE")
+    }
     if (this@describeProperties and BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS != 0) add("EXTENDED")
 }

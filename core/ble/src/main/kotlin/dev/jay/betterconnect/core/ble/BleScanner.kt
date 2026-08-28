@@ -28,9 +28,8 @@ import javax.inject.Singleton
  */
 @Singleton
 @SuppressLint("MissingPermission")
-class BleScanner @Inject constructor(
-    @param:ApplicationContext private val context: Context,
-) : DeviceScanner {
+class BleScanner @Inject constructor(@param:ApplicationContext private val context: Context) :
+    DeviceScanner {
 
     private val manager: BluetoothManager? =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
@@ -105,11 +104,15 @@ class BleScanner @Inject constructor(
             connectable = result.isConnectable,
             serviceUuids = record?.serviceUuids?.map { it.uuid.toString() }.orEmpty(),
             manufacturerData = record?.manufacturerSpecificData?.let { data ->
-                if (data.size() == 0) null else buildString {
-                    for (i in 0 until data.size()) {
-                        append("0x%04X:".format(data.keyAt(i)))
-                        append(data.valueAt(i).joinToString("") { "%02X".format(it) })
-                        if (i < data.size() - 1) append(' ')
+                if (data.size() == 0) {
+                    null
+                } else {
+                    buildString {
+                        for (i in 0 until data.size()) {
+                            append("0x%04X:".format(data.keyAt(i)))
+                            append(data.valueAt(i).joinToString("") { "%02X".format(it) })
+                            if (i < data.size() - 1) append(' ')
+                        }
                     }
                 }
             },

@@ -67,8 +67,7 @@ object SymbolCatalog {
         }
     }
 
-    fun labelFor(letter: Char): String =
-        bySteadyLetter[letter.uppercaseChar()] ?: UNKNOWN_LABEL
+    fun labelFor(letter: Char): String = bySteadyLetter[letter.uppercaseChar()] ?: UNKNOWN_LABEL
 
     fun isDocumented(letter: Char): Boolean =
         bySteadyLetter[letter.uppercaseChar()]?.let { it != UNKNOWN_LABEL } == true

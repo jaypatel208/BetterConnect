@@ -26,10 +26,8 @@ import javax.inject.Singleton
  * use, so what you drive by hand and what CI asserts are the same object.
  */
 @Singleton
-class SwitchableTransport @Inject constructor(
-    private val real: BleClusterTransport,
-    scope: CoroutineScope,
-) : DemoCapableTransport {
+class SwitchableTransport @Inject constructor(private val real: BleClusterTransport, scope: CoroutineScope) :
+    DemoCapableTransport {
 
     val fake = FakeClusterTransport(ConnectionState.Idle)
 

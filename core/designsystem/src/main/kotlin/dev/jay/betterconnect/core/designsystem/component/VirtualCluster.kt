@@ -155,7 +155,10 @@ private fun ClusterContent(frame: DecodedFrame) {
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            ClusterStat("ETA", "%d:%02d %s".format(frame.etaHour12, frame.etaMinute, if (frame.isPm) "PM" else "AM"))
+            ClusterStat(
+                "ETA",
+                "%d:%02d %s".format(frame.etaHour12, frame.etaMinute, if (frame.isPm) "PM" else "AM"),
+            )
             ClusterStat("LEFT", frame.total.display())
             ClusterStat("GPS", if (frame.gpsActive) "OK" else "NO FIX")
             ClusterStat("ICON", "${frame.symbolChar} (0x%02X)".format(frame.symbolCode))
@@ -171,8 +174,7 @@ private fun ClusterStat(label: String, value: String) {
     }
 }
 
-internal fun DistanceField.display(): String =
-    if (isMetres) "$whole m" else "$whole.%02d km".format(fraction)
+internal fun DistanceField.display(): String = if (isMetres) "$whole m" else "$whole.%02d km".format(fraction)
 
 @Preview(name = "Cluster - turn", widthDp = 400)
 @Composable

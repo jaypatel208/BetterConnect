@@ -23,10 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
-import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jay.betterconnect.core.designsystem.component.MetricRow
 import dev.jay.betterconnect.core.designsystem.component.SectionCard
@@ -34,6 +33,7 @@ import dev.jay.betterconnect.core.designsystem.theme.MonoText
 import dev.jay.betterconnect.core.designsystem.theme.StatusColors
 import dev.jay.betterconnect.core.model.GattService
 import dev.jay.betterconnect.core.protocol.ClusterProtocol
+import kotlinx.coroutines.launch
 
 @Composable
 fun InspectRoute(viewModel: InspectViewModel = hiltViewModel()) {
@@ -78,7 +78,11 @@ fun InspectScreen(
                     state.mtu?.toString() ?: "-",
                     valueColor = if (state.mtu == null) {
                         MaterialTheme.colorScheme.onSurface
-                    } else if (state.mtuAdequate) StatusColors.Ok else StatusColors.Error,
+                    } else if (state.mtuAdequate) {
+                        StatusColors.Ok
+                    } else {
+                        StatusColors.Error
+                    },
                 )
                 MetricRow("Required MTU", "${ClusterProtocol.MIN_MTU} (48 byte frame + 3)")
             }
@@ -196,7 +200,11 @@ private fun ServiceBlock(service: GattService) {
                             if (characteristic.isTbtInfo) append("   <-- TBT_INFO")
                         },
                         style = MonoText.small,
-                        color = if (characteristic.isTbtInfo) StatusColors.Ok else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (characteristic.isTbtInfo) {
+                            StatusColors.Ok
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     )
                 }
             }

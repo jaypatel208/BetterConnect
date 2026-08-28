@@ -8,11 +8,7 @@ import java.util.Locale
  * The single most commonly mis-guessed part of this format is that whole and fraction
  * are *not* one scaled integer. They are two separate little-endian uint16 fields.
  */
-data class DistanceField(
-    val isMetres: Boolean,
-    val whole: Int,
-    val fraction: Int,
-) {
+data class DistanceField(val isMetres: Boolean, val whole: Int, val fraction: Int) {
     /**
      * Best-effort reconstruction in metres. Lossy above the kilometre threshold, because
      * the wire format only keeps two decimal places: 12 345 m encodes as 12.35 km and
@@ -55,10 +51,9 @@ object DistanceCodec {
         buffer[offset + 3] = ((field.whole shr 8) and 0xFF).toByte()
     }
 
-    fun readFrom(buffer: ByteArray, offset: Int, isMetres: Boolean): DistanceField =
-        DistanceField(
-            isMetres = isMetres,
-            fraction = (buffer[offset].toInt() and 0xFF) or ((buffer[offset + 1].toInt() and 0xFF) shl 8),
-            whole = (buffer[offset + 2].toInt() and 0xFF) or ((buffer[offset + 3].toInt() and 0xFF) shl 8),
-        )
+    fun readFrom(buffer: ByteArray, offset: Int, isMetres: Boolean): DistanceField = DistanceField(
+        isMetres = isMetres,
+        fraction = (buffer[offset].toInt() and 0xFF) or ((buffer[offset + 1].toInt() and 0xFF) shl 8),
+        whole = (buffer[offset + 2].toInt() and 0xFF) or ((buffer[offset + 3].toInt() and 0xFF) shl 8),
+    )
 }

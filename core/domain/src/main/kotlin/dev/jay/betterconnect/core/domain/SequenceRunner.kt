@@ -12,11 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-data class SequenceProgress(
-    val script: SequenceScript,
-    val index: Int,
-    val looping: Boolean,
-) {
+data class SequenceProgress(val script: SequenceScript, val index: Int, val looping: Boolean) {
     val step: SequenceStep get() = script.steps[index]
     val total: Int get() = script.steps.size
     val fraction: Float get() = if (total == 0) 0f else (index + 1).toFloat() / total
@@ -29,10 +25,7 @@ data class SequenceProgress(
  * dwell period. That split matters - the cluster needs the heartbeat regardless of
  * whether a human or a script is choosing what to show.
  */
-class SequenceRunner(
-    private val scheduler: WriteScheduler,
-    private val encoder: TbtEncoder = TbtEncoder(),
-) {
+class SequenceRunner(private val scheduler: WriteScheduler, private val encoder: TbtEncoder = TbtEncoder()) {
 
     private val _progress = MutableStateFlow<SequenceProgress?>(null)
     val progress: StateFlow<SequenceProgress?> = _progress.asStateFlow()

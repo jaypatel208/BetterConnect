@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.betterconnect.android.library)
     alias(libs.plugins.betterconnect.android.compose)
+    alias(libs.plugins.betterconnect.android.screenshot)
 }
 
 android {

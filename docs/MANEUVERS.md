@@ -8,33 +8,36 @@ area is a fixed icon set, so one byte picks from a closed list.
 
 ---
 
-## 1. The central problem: three vocabularies, none confirmed
+## 1. Three vocabularies — and which one the hardware backs
 
-There are **three** different sources for what a byte means, and they **contradict each
-other**:
+There are three sources for what an icon byte means:
 
-1. **`PrimaryTurns`** — the native enum, used by the Google Navigation path `[dex]`.
-2. **The Mappls sprite map** — `maneuverIDMap` plus the PNG filenames the app draws in its
-   own UI `[js]`. This was the only source the first revision of this document had.
-3. **What the cluster actually draws** — **largely unknown** `[hardware]`.
+1. **`PrimaryTurns`** — the native enum used by the Google path `[dex]`.
+2. **The Mappls `maneuverIDMap`** plus its sprite filenames `[dex]` `[js]`.
+3. **What the cluster actually draws** `[hardware]` — the arbiter.
 
-Where 1 and 2 disagree, at least one is wrong about the hardware. Four codes are outright
-contradictory:
+They disagreed on six codes. **Field observation has now settled most of them, and the two
+vocabularies split the result** — neither is wholly right:
 
-| Byte | `PrimaryTurns` `[dex]` | Mappls sprite `[js]` | Verdict |
-|---|---|---|---|
-| `C` | `TURN_SLIGHT_LEFT` | keep-left variant | **conflict** |
-| `D` | `TURN_SLIGHT_RIGHT` | keep-right variant | **conflict** |
-| `Z` | `KEEP_LEFT` | slight left | **conflict — inverse of C** |
-| `X` | `KEEP_RIGHT` | slight right | **conflict — inverse of D** |
-| `B` | `WRONG_WAY` | enter the rotary | **conflict, severe** |
-| `O` / `P` | `U_TURN_LEFT` / `U_TURN_RIGHT` | u-turn right-hand / u-turn | **conflict, handedness** |
+| Byte | `PrimaryTurns` | Mappls sprite | **Observed** `[hardware]` | Winner |
+|---|---|---|---|---|
+| `C` | slight left | keep left at fork | left arrow **plus a second, un-arrowed line to the right**, both off a central stem | **Mappls** — the second line is the not-taken branch, i.e. a fork/keep |
+| `Z` | keep left | slight left | same as `C` **without** the right-hand line | **Mappls** — a plain slight turn |
+| `D` | slight right | keep right at fork | exact mirror of `C` | **Mappls** |
+| `X` | keep right | slight right | exact mirror of `Z` | **Mappls** |
+| `O` | u-turn left | u-turn (right-hand) | u-turn | **`PrimaryTurns`** |
+| `P` | u-turn right | u-turn | u-turn | **`PrimaryTurns`** |
+| `B` | `WRONG_WAY` | enter the rotary | partial arc | **Mappls** |
 
-`C`/`D` and `Z`/`X` appear to be **swapped** between the two vocabularies. Sending the wrong
-one of a swapped pair produces a plausible-looking but wrong arrow — the exact failure the
-stock navigation is criticised for.
+**Rule that falls out:** where a code draws a *second, un-arrowed branch*, it is a
+fork/keep-lane icon (`C`, `D`). Where it draws a single arrow at an angle, it is a slight
+turn (`Z`, `X`).
 
-**Nothing here is settled until the sweep in §5 is run.**
+The `PrimaryTurns` labels for `C`/`D`/`Z`/`X` are **inverted** relative to what the hardware
+draws. Anyone mapping Google manoeuvres via the vendor's table would put slight turns on the
+fork icon and vice versa.
+
+`O` vs `P` handedness (which is left, which is right) still needs one confirming look.
 
 ## 2. `PrimaryTurns` — the native vocabulary
 
@@ -81,19 +84,21 @@ cluster** `[hardware]`. Two readings, both plausible:
 This is precisely why `[dex]` cannot close a row. A vocabulary the *app* uses is not proof
 of what the *cluster* draws.
 
-## 3. Blinking
+## 3. Blinking — NOT supported on this cluster
 
-Lowercase (`+0x20`) is the blinking form. Threshold: **under 100 m** to the manoeuvre
-(under 40 m for Mappls manoeuvre id 8) `[dex]`.
+The protocol defines lowercase (`+0x20`) as the blinking form, with a 100 m threshold
+`[dex]`. **This cluster ignores it** `[hardware]`:
 
-Two important asymmetries `[dex]`:
+- `I` and `i` produce the identical result. Same for `J` / `j`.
+- `H` shows the arrival icon in **either** case.
 
-- **`PrimaryTurns` has no lowercase variants at all.** Anything routed through it is always
-  uppercase, so on the Google path **only roundabouts blink** — those are routed through
-  the Mappls `maneuverIDMap`, which does have blink pairs.
-- **Arrival breaks the `+0x20` rule.** Steady is `G` (0x47), blinking is `H` (0x48), not
-  `g`. `G` therefore means both "straight ahead" and "arrived", separated only by the blink
-  form.
+So the blink distinction exists in the wire format and in the vendor's code, but this
+display does not act on it. Send uppercase always; there is no reason to compute the blink
+form for this hardware.
+
+One consequence worth noting: `G` (straight) and `H` (arrived) are **separate icons** here,
+not one icon in two blink states. The `+0x20` arrival exception in the encoder is therefore
+irrelevant on this cluster.
 
 ## 3b. Which vocabulary drives THIS bike: Mappls
 
@@ -170,30 +175,30 @@ Run on a Pulsar N160 UG, full alphabet, constant 500 m / `TEST ROAD` `[hardware]
 |---|---|---|---|
 | `A` | **yes** | partial arc, "like a loader at 0–80%, not a full circle" | identical to `B`. **Not in the native enum at all** |
 | `B` | **yes** | same partial arc as `A` | |
-| `C` | yes | | exact shape not yet recorded |
-| `D` | yes | | |
+| `C` | yes | left arrow **plus an un-arrowed line to the right**, both off a central stem | **fork / keep left** |
+| `D` | yes | exact mirror of `C` | **fork / keep right** |
 | `E` | yes | | |
 | `F` | yes | | |
 | `G` | yes | | |
-| `H` | yes | | |
-| `I` | yes | turn left | |
+| `H` | yes | arrival / "destination reached" icon, in either case | |
+| `I` | yes | turn left | `i` identical - no blink |
 | `J` | yes | | |
 | `K` | yes | | |
 | `L` | yes | | |
 | `M` | **no effect** | | unused in the enum too — genuinely unallocated |
 | `N` | **NO EFFECT** | | **roundabout family A — this cluster has no such icon** |
-| `O` | yes | | |
-| `P` | yes | | |
+| `O` | yes | u-turn | handedness to confirm |
+| `P` | yes | u-turn (other hand) | handedness to confirm |
 | `Q` | yes | | |
 | `R` | yes | | |
 | `S` | **no effect** | | unused in the enum too |
 | `T` | **NO EFFECT** | | `FERRY_TRAIN` in the enum — not on this cluster |
 | `U` | **NO EFFECT** | | **roundabout family B — this cluster has no such icon** |
-| `V` | yes | | `MERGE` |
+| `V` | yes | straight arrow with a shaped/flared tail, "like the arrow of a bow" | `MERGE` |
 | `W` | **no effect** | | unused in the enum too |
-| `X` | **yes** | renders, but **not exactly** what the official app draws for that direction — "almost identical" | worth a closer look |
+| `X` | **yes** | exact mirror of `Z` | **slight right** |
 | `Y` | **NO EFFECT** | | `FERRY` in the enum — not on this cluster |
-| `Z` | yes | | |
+| `Z` | yes | like `C` but **without** the right-hand line | **slight left** |
 
 ### What this cluster's icon set actually is
 
@@ -233,12 +238,9 @@ compare against the official app entering a real roundabout.
 
 ### Still open from this sweep
 
-- The exact shape each rendering code draws — only `A`/`B` and `I` were described.
-- Why `X` differs slightly from the official app's arrow for the same direction.
-- Whether the `C`/`Z` and `D`/`X` conflicts are resolved — needs the shapes, not just
-  "renders".
-- **Blinking is untested.** Lower vs upper case showed no difference, but the codes used for
-  that test (`A`/`a`) are ones whose blink behaviour is unknown. Re-test with `I` vs `i`.
+- `O` vs `P` handedness — which is the left u-turn.
+- The exact shapes of `E`, `F`, `G`, `K`, `L`, `Q`, `R`.
+- Whether `A` and `B` really draw the rotary, confirmed against a real roundabout.
 
 ## 6. Building a mapping we can trust
 
@@ -269,8 +271,17 @@ K  ramp left        L  ramp right
 G  straight         H  arrived
 ```
 
-`C`/`D`/`X`/`Z` all render but their meanings are still disputed between sources, so a
-slight-left is safer degraded to `I` than guessed between `C` and `Z`.
+`C`/`D`/`X`/`Z` are **now resolved by observation** `[hardware]` and safe to use:
+
+```
+C  keep left / fork left     D  keep right / fork right
+Z  slight left               X  slight right
+```
+
+Use the vendor's own table with care here — its `PrimaryTurns` labels for these four are
+inverted relative to what the cluster draws.
+
+**Blinking is not supported** `[hardware]`. Always send uppercase.
 
 ## 7. Open questions
 

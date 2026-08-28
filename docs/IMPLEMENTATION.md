@@ -151,6 +151,56 @@ actually fixes the wrong arrows, because it yields:
 Text matching is precisely the technique that produces the stock app's bad arrows. Do not
 reintroduce it at the source layer.
 
+### Legibility: never make the rider decode a pictogram
+
+**This is the product's main differentiator, and it is a deliberate departure from the
+official app.**
+
+The stock app's directions are accurate — the complaint is that the **icons are hard to read
+at a glance** `[hardware]`. And the icon set genuinely is ambiguous: `C` (fork/keep left) and
+`I` (turn left) are both a left-leaning arrow off a central stem, differing only by a thin
+second branch. At 60 km/h that is not a distinction anyone should have to make. The rider is
+left asking *"do I turn right here, or just stay in the right lane?"* — which is exactly the
+wrong question to be asking at a junction.
+
+We have something the icon alone cannot give: **a text field**. So:
+
+> **Always pair the icon with a short imperative caption.** The icon is the glanceable
+> shape; the words remove the ambiguity.
+
+A caption vocabulary that fits the constraints (`[0-9a-zA-Z.]`, short enough not to scroll):
+
+| Manoeuvre | Icon | Caption |
+|---|---|---|
+| turn | `I` / `J` | `TURN LEFT` / `TURN RIGHT` |
+| fork, lane keep | `C` / `D` | `KEEP LEFT` / `KEEP RIGHT` |
+| slight | `Z` / `X` | `SLIGHT LEFT` / `SLIGHT RIGHT` |
+| sharp | `E` / `F` | `SHARP LEFT` / `SHARP RIGHT` |
+| ramp | `K` / `L` | `EXIT LEFT` / `EXIT RIGHT` |
+| u-turn | `O` / `P` | `U TURN` |
+| merge | `V` | `MERGE` |
+| straight | `G` | `CONTINUE` |
+| rotary | `B` | `ROUNDABOUT` or `EXIT 2` |
+| arrival | `H` | `ARRIVED` |
+
+Three rules that follow:
+
+- **Keep captions short enough not to scroll.** Long text scrolls marquee-style
+  `[hardware]`, which means waiting to read it — actively worse than a static word while
+  riding. The non-scrolling width is not yet measured; until it is, stay under ~12
+  characters.
+- **Prefer the instruction over the street name.** The rider already knows the route from
+  the phone; what they need at the junction is the verb. Street names are a nice-to-have,
+  and a poor use of a field that scrolls.
+- **Prefer the simpler icon when the distinction does not matter.** If Google reports a
+  slight-left that is functionally just a left turn, `I` with `TURN LEFT` reads better than
+  `Z` with a shape most riders have never learned.
+
+**Dependency:** this rests entirely on our text rendering, which currently does not work —
+the frame is provably correct, so the cause is elsewhere (`PROTOCOL.md` §4, tracker item
+D4). That makes D4 **blocking for the product's main differentiator**, not a cosmetic
+detail.
+
 ### Mapping manoeuvres
 
 `MANEUVERS.md` §4 has the vendor's Google mapping. Use it as a starting point, not as

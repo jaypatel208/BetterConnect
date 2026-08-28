@@ -18,91 +18,62 @@ Connect on the Link tab, confirm Inspect shows the green verdict.
 
 ---
 
-# Session 2 — the short list
+# Session 3 — what is still unknown
 
-Session 1 answered most of the icon set. **Six things left**, in priority order. Everything
-else is either answered or needs app changes (Session B below).
+Sessions 1 and 2 answered the icon set, distances, blinking and the shape conflicts.
+**Four things left**, and two of them need app changes first.
 
-## 1. Kilometre distances — blocking
+## 1. `O` vs `P` handedness — 30 seconds
 
-The one result that could make navigation unusable. Note that **our encoding is
-byte-for-byte identical to the vendor's** `[dex]`, so if the cluster is wrong for us it is
-wrong for the official app too. That makes a direct comparison the strongest test:
+Both draw a u-turn. Which one is the **left** u-turn?
 
-**Step 1 — reference.** Run the **official Bajaj app**, navigate to somewhere ~2.5 km away.
-Note exactly what the cluster shows, digit for digit, including any decimal point.
-
-**Step 2 — ours.** Force-stop it, connect with ours, Signals tab, send these:
-
-| Send | Expected | Observed |
-|---|---|---|
-| 2500 m | `2.50 km` | |
-| 1200 m | `1.20 km` | |
-| 5750 m | `5.75 km` | |
-| 999 m | `999 m` or `1.00 km`? | |
-| 1011 m | `1.01 km` | |
-
-These values are asymmetric on purpose — 1011 encodes as whole=1/fraction=1 and cannot
-distinguish between the candidate readings. 2500 (whole=2, fraction=50) can.
-
-## 2. Blinking — the previous test was void
-
-Session 1 compared `A` vs `a`, but `A`'s blink behaviour is itself unknown, so the result
-proves nothing. Use a code that definitely renders:
-
-| Test | Observed |
+| Send | Observed |
 |---|---|
-| `I` then `i` — does `i` blink? | |
-| `J` then `j` | |
-| `G` then `H` — different icons, or the same one blinking? | |
+| `O` | |
+| `P` | |
 
-## 3. Is `A`/`B` really the roundabout?
+## 2. Is `A`/`B` really the rotary?
 
-The Mappls code says `B` = "enter the rotary" `[dex]` and you saw an arc `[hardware]`. Worth
-one confirmation:
+The Mappls map says manoeuvre 72 → `B` → "enter the rotary" `[dex]`, and you saw an arc.
+One confirmation:
 
 | Test | Observed |
 |---|---|
 | Navigate a **real roundabout** in the official app — what does the cluster draw? | |
-| Does it match the arc `A`/`B` draws from our app? | |
-| Does the exit number appear anywhere? | |
+| Does it match the arc `A`/`B` draws from ours? | |
+| Does an exit number appear anywhere? | |
 
-## 4. Shapes of the 19 rendering codes
+## 3. How much text fits before it scrolls
 
-Session 1 established *which* codes render but described only `A`, `B` and `I`. The disputed
-pairs are what matter — send each and describe the arrow in a few words:
+Captions must be readable at a glance, so they must **not** scroll. Send progressively
+longer strings and note where scrolling starts:
+
+| Send | Scrolls? |
+|---|---|
+| `TURN LEFT` (9) | |
+| `SLIGHT LEFT` (11) | |
+| `ROUNDABOUT` (10) | |
+| `KEEP RIGHT NOW` (14) | |
+| `ABCDEFGHIJKLMNOPQRST` (20) | |
+
+The answer sets the caption length budget in `IMPLEMENTATION.md` §4.
+
+## 4. Shapes of the remaining codes
+
+Only for completeness — none are disputed:
 
 | Code | Observed shape |
 |---|---|
-| `C` | |
-| `Z` | |
-| `D` | |
-| `X` | |
-| `O` | |
-| `P` | |
-| `V` | |
+| `E` / `F` | |
+| `G` | |
+| `K` / `L` | |
+| `Q` / `R` | |
 
-`C` vs `Z` and `D` vs `X` are the important ones: my two sources disagree about which is the
-slight turn and which is the lane-keep. And `X` reportedly renders slightly differently from
-the official app's arrow for the same direction — worth a closer look.
+## 5. Needs app changes first — do not attempt yet
 
-## 5. Does the display latch?
-
-Session 1 suggested it holds "a while" then drops — but that may simply have been the 65 s
-disconnect clearing it. Time it against the Log tab:
-
-| Test | Observed |
-|---|---|
-| One-shot, send `I`, note the clock. Does it vanish? | |
-| If yes, at roughly what elapsed time? | |
-| Did the Log show a disconnect at the same moment? | |
-
-## 6. Clearing
-
-| Test | Observed |
-|---|---|
-| Send `I`, press **Clear**. Does the nav area actually clear? | |
-| Or does the arrow stay? | |
+- **Why our text does not render.** The frame is proven identical to the vendor's, so it is
+  not an encoding bug. Re-test once `GENERAL` and the `CONTROL` read pump exist.
+- **The 65 s disconnect.** Same fix list.
 
 ---
 

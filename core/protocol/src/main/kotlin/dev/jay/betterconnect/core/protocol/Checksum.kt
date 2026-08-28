@@ -13,7 +13,6 @@ object Checksum {
         buffer[ClusterProtocol.CHECKSUM_INDEX] = compute(buffer).toByte()
     }
 
-    fun isValid(buffer: ByteArray): Boolean =
-        buffer.size == ClusterProtocol.TBT_SIZE &&
-            compute(buffer) == (buffer[ClusterProtocol.CHECKSUM_INDEX].toInt() and 0xFF)
+    fun isValid(buffer: ByteArray): Boolean = buffer.size == ClusterProtocol.TBT_SIZE &&
+        compute(buffer) == (buffer[ClusterProtocol.CHECKSUM_INDEX].toInt() and 0xFF)
 }

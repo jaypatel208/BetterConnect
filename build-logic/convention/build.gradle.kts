@@ -9,6 +9,7 @@ dependencies {
     compileOnly(libs.kotlin.gradlePlugin)
     compileOnly(libs.compose.gradlePlugin)
     compileOnly(libs.ksp.gradlePlugin)
+    compileOnly(libs.roborazzi.gradlePlugin)
 }
 
 gradlePlugin {
@@ -32,6 +33,10 @@ gradlePlugin {
         register("androidHilt") {
             id = "betterconnect.android.hilt"
             implementationClass = "AndroidHiltConventionPlugin"
+        }
+        register("androidScreenshot") {
+            id = "betterconnect.android.screenshot"
+            implementationClass = "AndroidScreenshotConventionPlugin"
         }
         register("jvmLibrary") {
             id = "betterconnect.jvm.library"

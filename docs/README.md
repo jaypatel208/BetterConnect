@@ -30,10 +30,19 @@ spread. Four candidates are ranked in `CONNECTION.md` §6. Unresolved.
 SKU, and therefore the **v1 packet generation** for `GENERAL`/`MISSED_CALL`/`ALERTS`.
 `TBT_INFO` is identical in both. See `PROTOCOL.md` §2.
 
-**Three field findings shape the product** `[hardware]`: the cluster shows **no street
-text**, has **no roundabout icon** (both codes inert), and the **GPS bits gate the entire
-navigation display**. Kilometre-mode distances may be mis-rendered and are the top thing to
-re-test — see `PROTOCOL.md` §4.
+**Field findings that shape the product** `[hardware]`: distances are confirmed correct in
+both units; **text renders and long strings scroll**, which makes custom text and weather
+feasible via `ALERTS_INFO`; **blinking is ignored** by this cluster; neither roundabout code
+renders (only the rotary arc `B`); and the **GPS bits gate the entire navigation display**.
+
+**The design bet:** the stock app's directions are accurate but its icons are hard to read
+at speed. We pair every icon with a short caption — `KEEP RIGHT` instead of a fork glyph —
+so the rider never has to ask "do I turn, or just stay in this lane?". `IMPLEMENTATION.md`
+§4.
+
+The icon vocabulary conflict is **resolved by observation** — `C`/`D` are fork/keep icons and
+`Z`/`X` are slight turns, which is the opposite of what the vendor's `PrimaryTurns` enum
+claims. See `MANEUVERS.md` §1.
 
 ## Reproducing the analysis
 

@@ -64,7 +64,11 @@ class ConnectViewModel @Inject constructor(
     fun onAction(action: ConnectAction) {
         when (action) {
             ConnectAction.ToggleScan ->
-                if (controller.scanner.scanning.value) controller.scanner.stop() else controller.scanner.start()
+                if (controller.scanner.scanning.value) {
+                    controller.scanner.stop()
+                } else {
+                    controller.scanner.start()
+                }
 
             is ConnectAction.Connect -> {
                 controller.scanner.stop()

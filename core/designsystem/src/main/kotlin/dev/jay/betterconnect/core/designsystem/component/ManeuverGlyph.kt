@@ -3,6 +3,7 @@ package dev.jay.betterconnect.core.designsystem.component
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,14 +22,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Text
 import dev.jay.betterconnect.core.designsystem.theme.StatusColors
 
 /** The families of arrow the cluster can draw, derived from the symbol byte. */
 enum class GlyphShape {
-    STRAIGHT, LEFT, RIGHT, SLIGHT_LEFT, SLIGHT_RIGHT, SHARP_LEFT, SHARP_RIGHT,
-    KEEP_LEFT, KEEP_RIGHT, U_TURN_LEFT, U_TURN_RIGHT, ROUNDABOUT,
-    RAMP_LEFT, RAMP_RIGHT, ARRIVE, UNKNOWN,
+    STRAIGHT,
+    LEFT,
+    RIGHT,
+    SLIGHT_LEFT,
+    SLIGHT_RIGHT,
+    SHARP_LEFT,
+    SHARP_RIGHT,
+    KEEP_LEFT,
+    KEEP_RIGHT,
+    U_TURN_LEFT,
+    U_TURN_RIGHT,
+    ROUNDABOUT,
+    RAMP_LEFT,
+    RAMP_RIGHT,
+    ARRIVE,
+    UNKNOWN,
     ;
 
     companion object {
@@ -229,12 +242,16 @@ private fun DrawScope.drawUTurn(color: Color, stroke: Stroke, mirrored: Boolean)
         moveTo(w / 2f + sign * w * 0.18f, w * 0.88f)
         lineTo(w / 2f + sign * w * 0.18f, w * 0.44f)
         quadraticTo(
-            w / 2f + sign * w * 0.18f, w * 0.18f,
-            w / 2f - sign * w * 0.18f, w * 0.18f,
+            w / 2f + sign * w * 0.18f,
+            w * 0.18f,
+            w / 2f - sign * w * 0.18f,
+            w * 0.18f,
         )
         quadraticTo(
-            w / 2f - sign * w * 0.18f, w * 0.18f,
-            w / 2f - sign * w * 0.18f, w * 0.40f,
+            w / 2f - sign * w * 0.18f,
+            w * 0.18f,
+            w / 2f - sign * w * 0.18f,
+            w * 0.40f,
         )
     }
     drawPath(path, color, style = stroke)

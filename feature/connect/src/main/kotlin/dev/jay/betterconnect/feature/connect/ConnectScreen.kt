@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,7 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jay.betterconnect.core.designsystem.component.Advisory
 import dev.jay.betterconnect.core.designsystem.component.SectionCard
@@ -192,11 +191,7 @@ private fun DemoModeCard(state: ConnectUiState, onAction: (ConnectAction) -> Uni
 }
 
 @Composable
-private fun DeviceCard(
-    device: DeviceInfo,
-    state: ConnectUiState,
-    onAction: (ConnectAction) -> Unit,
-) {
+private fun DeviceCard(device: DeviceInfo, state: ConnectUiState, onAction: (ConnectAction) -> Unit) {
     val connected = device.address == state.connectedAddress
     Card(
         modifier = Modifier
@@ -225,7 +220,11 @@ private fun DeviceCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(device.address, style = MonoText.small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    device.address,
+                    style = MonoText.small,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row {
                     if (device.bonded) Tag("BONDED")
                     if (device.isCandidate) Tag("CANDIDATE", StatusColors.Ok)
@@ -233,7 +232,11 @@ private fun DeviceCard(
                 }
             }
             if (device.rssi != -127) {
-                Text("${device.rssi}", style = MonoText.small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "${device.rssi}",
+                    style = MonoText.small,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -270,7 +273,13 @@ private fun SignalMeter(rssi: Int) {
                     .width(4.dp)
                     .height((6 + index * 6).dp)
                     .background(
-                        if (index < bars) StatusColors.Ok else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                        if (index <
+                            bars
+                        ) {
+                            StatusColors.Ok
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                        },
                         CircleShape,
                     ),
             )

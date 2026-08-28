@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # Style first: it is the fastest signal and the cheapest to fix.
+      - name: ktlint
+        run: ./gradlew ktlintCheck
+
+      # The gate. Unit and integration tests across every layer, plus Roborazzi
+      # screenshot comparisons, which run on the JVM like any other unit test.
+      - name: Test
+        run: ./gradlew test
+
+      - name: Coverage
+        run: ./gradlew koverXmlReport koverHtmlReport
+
+      - name: Assemble both flavours
+        run: ./gradlew assembleDiagDebug assembleFullDebug
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            **/build/reports/tests/
+            **/build/reports/kover/
+            build/reports/kover/
+            **/build/outputs/roborazzi/
+          retention-days: 14

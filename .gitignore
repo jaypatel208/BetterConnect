@@ -15,6 +15,16 @@ local.properties
 .kotlin/
 
 # ---------------------------------------------------------------------------
+# Coding agent configuration
+# ---------------------------------------------------------------------------
+# CLAUDE.md, .claude/rules/ and .claude/skills/ ARE committed - they are the
+# project's shared conventions. Only per-machine state is ignored.
+.claude/settings.local.json
+.claude/*.local.json
+CLAUDE.local.md
+AGENTS.local.md
+
+# ---------------------------------------------------------------------------
 # Secrets and signing material
 # ---------------------------------------------------------------------------
 # API keys (Maps / Routes) belong here, injected via the secrets Gradle plugin.
@@ -45,6 +55,12 @@ lint-results*.html
 lint-results*.xml
 lint-results*.txt
 lint-baseline.xml
+
+# Roborazzi writes comparison and diff images next to the baselines during a
+# verify run. The baselines themselves live in src/test/screenshots and MUST be
+# committed - they are the reference CI compares against.
+**/src/test/screenshots/**/*_compare.png
+**/src/test/screenshots/**/*_actual.png
 
 # ---------------------------------------------------------------------------
 # Native build

@@ -84,24 +84,13 @@ data class DeviceInfo(
 }
 
 /** Flattened GATT table for the Inspect screen. */
-data class GattDump(
-    val address: String,
-    val mtu: Int,
-    val services: List<GattService>,
-) {
+data class GattDump(val address: String, val mtu: Int, val services: List<GattService>) {
     val hasTbtCharacteristic: Boolean
         get() = services.any { s -> s.characteristics.any { it.isTbtInfo && it.writable } }
 }
 
-data class GattService(
-    val uuid: String,
-    val characteristics: List<GattCharacteristic>,
-)
+data class GattService(val uuid: String, val characteristics: List<GattCharacteristic>)
 
-data class GattCharacteristic(
-    val uuid: String,
-    val properties: List<String>,
-    val isTbtInfo: Boolean,
-) {
+data class GattCharacteristic(val uuid: String, val properties: List<String>, val isTbtInfo: Boolean) {
     val writable: Boolean get() = "WRITE" in properties || "WRITE_NO_RESPONSE" in properties
 }

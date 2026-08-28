@@ -1,13 +1,13 @@
 package dev.jay.betterconnect.core.data.di
 
-import dev.jay.betterconnect.core.data.SwitchableTransport
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dev.jay.betterconnect.core.ble.BleScanner
+import dev.jay.betterconnect.core.data.SwitchableTransport
 import dev.jay.betterconnect.core.domain.DiagLog
 import dev.jay.betterconnect.core.domain.SequenceRunner
-import dev.jay.betterconnect.core.ble.BleScanner
 import dev.jay.betterconnect.core.link.ClusterTransport
 import dev.jay.betterconnect.core.link.DemoCapableTransport
 import dev.jay.betterconnect.core.link.DeviceScanner
@@ -25,8 +25,7 @@ object DataModule {
     /** Application-lifetime scope for the link and the heartbeat. */
     @Provides
     @Singleton
-    fun provideAppScope(): CoroutineScope =
-        CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    fun provideAppScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @Provides
     @Singleton

@@ -1,0 +1,25 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = 110
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+
+ktlint_code_style = intellij_idea
+
+# Composable functions are PascalCase by convention. ktlint's function-naming rule does not
+# know that, and renaming them is not an option.
+ktlint_standard_function-naming = disabled
+
+# The codebase deliberately wraps function signatures one parameter per line, even when they
+# would fit. It keeps diffs to a single line when a parameter changes, and Composable
+# signatures are read far more often than they are written.
+ktlint_standard_function-signature = disabled
