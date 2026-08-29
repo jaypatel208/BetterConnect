@@ -29,6 +29,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jay.betterconnect.core.designsystem.component.MetricRow
 import dev.jay.betterconnect.core.designsystem.component.SectionCard
+import dev.jay.betterconnect.core.designsystem.component.describe
 import dev.jay.betterconnect.core.designsystem.theme.MonoText
 import dev.jay.betterconnect.core.designsystem.theme.StatusColors
 import dev.jay.betterconnect.core.model.GattService

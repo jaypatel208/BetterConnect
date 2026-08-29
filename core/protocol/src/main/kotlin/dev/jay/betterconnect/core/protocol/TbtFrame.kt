@@ -1,5 +1,7 @@
 package dev.jay.betterconnect.core.protocol
 
+import dev.jay.betterconnect.core.model.GpsStatus
+
 /**
  * A 48-byte frame with content-based equality.
  *
@@ -34,6 +36,9 @@ class TbtFrame(val bytes: ByteArray) {
     override fun toString(): String = "TbtFrame(${toHex()})"
 
     companion object {
-        fun endNavigation(): TbtFrame = TbtFrame(TbtEncoder.endNavigationFrame())
+        fun endNavigation(
+            gpsStatus: GpsStatus = GpsStatus.ACTIVE,
+            takeMeHomeAck: Int = 0,
+        ): TbtFrame = TbtFrame(TbtEncoder.endNavigationFrame(gpsStatus, takeMeHomeAck))
     }
 }

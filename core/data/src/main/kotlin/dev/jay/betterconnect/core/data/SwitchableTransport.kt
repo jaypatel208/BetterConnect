@@ -9,6 +9,7 @@ import dev.jay.betterconnect.core.model.GattDump
 import dev.jay.betterconnect.core.protocol.TbtFrame
 import dev.jay.betterconnect.core.testing.FakeClusterTransport
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +47,10 @@ class SwitchableTransport @Inject constructor(private val real: BleClusterTransp
         _demoMode.flatMapLatest { demo -> if (demo) fake.gattDump else real.gattDump }
             .stateIn(scope, SharingStarted.Eagerly, null)
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    override val controlReads: Flow<ByteArray> =
+        _demoMode.flatMapLatest { demo -> if (demo) fake.controlReads else real.controlReads }
+
     override fun setDemoMode(enabled: Boolean) {
         if (_demoMode.value == enabled) return
         active.disconnect()
@@ -58,4 +63,8 @@ class SwitchableTransport @Inject constructor(private val real: BleClusterTransp
     override fun disconnect() = active.disconnect()
 
     override fun write(frame: TbtFrame): WriteOutcome = active.write(frame)
+
+    override fun writeGeneral(bytes: ByteArray): WriteOutcome = active.writeGeneral(bytes)
+
+    override fun requestControlRead(): WriteOutcome = active.requestControlRead()
 }

@@ -13,11 +13,28 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
+    <!-- Maps tiles and the Routes API call - the only network access this app needs. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Android 16+ "Live Update" promotion for the navigation notification (Deliverable 5). -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
     <!-- Enhanced set: requested in onboarding, never blocks reaching the app. -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application>
+        <!--
+          Read by both the Maps SDK itself and RoutesApiRepository (core/data), so one key
+          entered in secrets.properties covers both. MAPS_API_KEY defaults to an empty string
+          (app/build.gradle.kts) so a keyless clone still builds and installs - the nav screen
+          detects the empty key and explains itself rather than crashing. See docs/SETUP.md.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
         <!--
           ClusterService also runs the guidance loop, so it touches both connectedDevice
           (the BLE link) and location (position tracking while navigating).
@@ -32,6 +49,21 @@
           Settings-granted roles, no runtime dialog. Registered so they are visible and
           grantable from onboarding; the frame-sending logic is future work.
         -->
+        <!--
+          Exports the ride log from the hidden debug menu. diag's Log tab shares its whole
+          log via Intent.EXTRA_TEXT, which an hour of ride logging would blow past the Binder
+          transaction limit - a content:// URI has no such limit.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <service
             android:name="dev.jay.betterconnect.core.ble.CallScreeningRoleService"
             android:exported="true"

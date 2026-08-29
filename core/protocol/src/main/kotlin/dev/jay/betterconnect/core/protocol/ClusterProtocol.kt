@@ -25,13 +25,20 @@ object ClusterProtocol {
 
     /**
      * The link has no return channel, so state is re-asserted continuously rather than
-     * sent as deltas. This cadence is the transport, not an optimisation. PROTOCOL.md §1.
+     * sent as deltas. Re-send periods, native `[dex]` - PROTOCOL.md §4/§5/§6.
+     *
+     * The 350 ms figure that used to live here was a JS-layer artefact and never the real
+     * native cadence; 800 ms is. See `docs/DEVELOPMENT-NOTES.md` A1/D1.
      */
-    const val HEARTBEAT_MS: Long = 350L
+    const val TBT_PERIOD_MS: Long = 800L
+    const val CONTROL_PERIOD_MS: Long = 700L
+    const val GENERAL_PERIOD_MS: Long = 1000L
 
     /** A 48-byte ATT write needs MTU >= 51. The official app never requests this. */
     const val MIN_MTU: Int = TBT_SIZE + 3
-    const val REQUESTED_MTU: Int = 64
+
+    /** `.claude/rules/protocol.md`'s documented connect sequence: `requestMtu(256)`. */
+    const val REQUESTED_MTU: Int = 256
 
     /** Maximum street text bytes, at offset [TEXT_OFFSET]. */
     const val MAX_TEXT_LEN: Int = 31

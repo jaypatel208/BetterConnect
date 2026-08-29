@@ -14,9 +14,13 @@ Two flavours:
 | Flavour | Application id | What it is |
 |---|---|---|
 | `diag` | `dev.jay.betterconnect.diag` | The diagnostic harness. Scan, connect, inspect the GATT table, fire individual symbols, run scripted sequences, read the frame log. |
-| `full` | `dev.jay.betterconnect` | Placeholder. The navigation build starts once `diag` has confirmed the link on the bike. |
+| `full` | `dev.jay.betterconnect` | The navigation build. Connects, holds the link, and turns Google Routes API guidance into cluster frames. Needs a Maps/Routes API key to route — see [`docs/SETUP.md`](docs/SETUP.md) — but installs and connects to the cluster without one. |
 
 Both install side by side, and alongside the official Bajaj app.
+
+Every push to `main` builds and publishes a signed `full` release as a GitHub Release (APK +
+AAB) — see [`docs/RELEASING.md`](docs/RELEASING.md) for the versioning scheme and how to wire
+up real release signing.
 
 ## Why it is shaped this way
 

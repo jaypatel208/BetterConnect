@@ -20,7 +20,14 @@ data class NavState(
     val text: String,
     /** 1..7 for roundabouts, 0 otherwise. Occupies the high nibble of byte 7. */
     val roundaboutExit: Int = 0,
-    val gpsActive: Boolean = true,
+    /**
+     * GPS gates the whole navigation display on this cluster `[hardware]` - clearing it
+     * removes the nav area entirely, not just an indicator. A lost fix must send
+     * [GpsStatus.SEARCHING], never [GpsStatus.OFF], while navigation is still active.
+     */
+    val gpsStatus: GpsStatus = GpsStatus.ACTIVE,
+    /** Mirrors the `CONTROL` `takeMeHome` request byte. Byte 13 is not reserved (A7). */
+    val takeMeHomeAck: Int = 0,
     /**
      * Sends this exact byte as the icon code, bypassing [symbol].
      *
@@ -37,6 +44,18 @@ data class NavState(
 
     companion object {
         const val BLINK_THRESHOLD_M: Int = 100
+    }
+}
+
+/** Byte 12 bits 3-2 of the TBT frame. A 2-bit field, not a boolean - PROTOCOL.md §4. */
+enum class GpsStatus(val code: Int) {
+    OFF(0),
+    ACTIVE(1),
+    SEARCHING(2),
+    ;
+
+    companion object {
+        fun fromCode(code: Int): GpsStatus = entries.firstOrNull { it.code == (code and 0x03) } ?: OFF
     }
 }
 
@@ -80,6 +99,9 @@ data class DeviceInfo(
 
     companion object {
         val CANDIDATE_TOKENS = listOf("pulsar", "freedom", "dominar")
+
+        /** A bonded device retrieved from the adapter, never seen in an active scan. */
+        const val RSSI_UNKNOWN = -127
     }
 }
 

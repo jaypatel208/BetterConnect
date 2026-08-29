@@ -32,13 +32,13 @@ class WriteSchedulerTest {
     }
 
     @Test
-    fun `heartbeat re-asserts the same frame every 350 ms`() = runTest {
+    fun `heartbeat re-asserts the same frame every 800 ms`() = runTest {
         val transport = FakeClusterTransport()
         val scheduler = WriteScheduler(transport)
         val job = scheduler.start(backgroundScope)
 
         scheduler.setFrame(frame)
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 3 + 1)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 3 + 1)
 
         // one immediate send plus three ticks
         assertEquals(4, transport.received.size)
@@ -54,7 +54,7 @@ class WriteSchedulerTest {
         val job = scheduler.start(backgroundScope)
 
         scheduler.setFrame(frame)
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 10)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 10)
 
         assertEquals(1, transport.received.size)
         job.cancel()
@@ -71,14 +71,14 @@ class WriteSchedulerTest {
         val job = scheduler.start(backgroundScope)
 
         scheduler.setFrame(frame)
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 3 + 1)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 3 + 1)
 
         assertEquals("only the first write got through", 1, transport.received.size)
         assertEquals(3, scheduler.stats.value.dropped)
 
         // Once the stack completes the write, the next tick sends current state again.
         transport.completeWrite()
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS + 1)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS + 1)
         assertEquals(2, transport.received.size)
         job.cancel()
     }
@@ -112,7 +112,7 @@ class WriteSchedulerTest {
 
         scheduler.setFrame(frame)
         scheduler.clear()
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 3 + 1)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 3 + 1)
 
         assertEquals(TbtFrame.endNavigation(), transport.received.last())
         assertNull(scheduler.currentFrame.value)
@@ -126,7 +126,7 @@ class WriteSchedulerTest {
         val scheduler = WriteScheduler(transport)
         val job = scheduler.start(backgroundScope)
 
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 5)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 5)
 
         assertTrue(transport.received.isEmpty())
         job.cancel()
@@ -139,11 +139,11 @@ class WriteSchedulerTest {
         scheduler.start(backgroundScope)
 
         scheduler.setFrame(frame)
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS + 1)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS + 1)
         val afterOneTick = transport.received.size
 
         scheduler.stop()
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 5)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 5)
 
         assertEquals(afterOneTick, transport.received.size)
     }

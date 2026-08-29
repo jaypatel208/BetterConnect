@@ -13,7 +13,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Owns the 350 ms heartbeat and the one-outstanding-write rule.
+ * Owns the 800 ms TBT re-send heartbeat and the one-outstanding-write rule.
  *
  * Two behaviours here are load-bearing and both come from the link being one-way:
  *
@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
  */
 class WriteScheduler(
     private val transport: ClusterTransport,
-    private val periodMs: Long = ClusterProtocol.HEARTBEAT_MS,
+    private val periodMs: Long = ClusterProtocol.TBT_PERIOD_MS,
 ) {
 
     private val _stats = MutableStateFlow(WriteStats())

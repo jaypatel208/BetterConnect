@@ -2,6 +2,7 @@ package dev.jay.betterconnect.feature.signals
 
 import app.cash.turbine.test
 import dev.jay.betterconnect.core.link.SendMode
+import dev.jay.betterconnect.core.protocol.TbtFrame
 import dev.jay.betterconnect.core.testing.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
@@ -95,7 +96,7 @@ class SignalsViewModelTest {
     }
 
     @Test
-    fun `clear sends the all-zero frame and drops the selection`() = runTest {
+    fun `clear sends the native end-of-navigation frame and drops the selection`() = runTest {
         val h = TestHarness(backgroundScope)
         val vm = SignalsViewModel(h.controller)
         runCurrent()
@@ -103,7 +104,7 @@ class SignalsViewModelTest {
         vm.onAction(SignalsAction.SendLetter('I'))
         vm.onAction(SignalsAction.Clear)
 
-        assertTrue(h.transport.received.last().bytes.all { it == 0.toByte() })
+        assertEquals(TbtFrame.endNavigation(), h.transport.received.last())
         vm.uiState.test {
             awaitItem()
             runCurrent()

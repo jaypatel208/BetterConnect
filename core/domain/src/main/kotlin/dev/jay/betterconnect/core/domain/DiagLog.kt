@@ -30,6 +30,22 @@ class DiagLog(private val capacity: Int = DEFAULT_CAPACITY) {
     private val _entries = MutableStateFlow<List<LogEntry>>(emptyList())
     val entries: StateFlow<List<LogEntry>> = _entries.asStateFlow()
 
+    /**
+     * Optional sink for every entry as it is appended, formatted the same as [export]'s
+     * per-entry lines. The ride log (`docs/DEVELOPMENT-NOTES.md` D1/D4 bisect) needs more
+     * than [capacity]'s 500-entry ring can hold for an hour-long ride, so the debug menu
+     * attaches a file-backed sink here rather than this class growing a second log type.
+     */
+    var sink: ((String) -> Unit)? = null
+
+    /**
+     * Off by default: at the 800 ms TBT cadence a ride is ~4,500 [LogLevel.FRAME] entries an
+     * hour, which makes the exported file unreadable for what the ride log actually exists
+     * to answer (connects, drops, reroutes, unmapped manoeuvres). The debug menu's frame-
+     * logging toggle flips this on only when someone is actively chasing a frame-level bug.
+     */
+    var sinkFrames: Boolean = false
+
     fun log(level: LogLevel, tag: String, message: String, nowMs: Long) {
         append(LogEntry(nowMs, level, tag, message))
     }
@@ -61,21 +77,24 @@ class DiagLog(private val capacity: Int = DEFAULT_CAPACITY) {
     }
 
     /** Plain text for sharing out of the app. */
-    fun export(): String = _entries.value.joinToString("\n") { entry ->
-        buildString {
-            append(entry.timestampMs).append(' ')
-            append(entry.level.name.padEnd(5)).append(' ')
-            append('[').append(entry.tag).append("] ")
-            append(entry.message)
-            entry.hex?.let { append("\n    hex: ").append(it) }
-            entry.decoded?.let { append("\n    dec: ").append(it) }
-        }
+    fun export(): String = _entries.value.joinToString("\n") { formatLine(it) }
+
+    private fun formatLine(entry: LogEntry): String = buildString {
+        append(entry.timestampMs).append(' ')
+        append(entry.level.name.padEnd(5)).append(' ')
+        append('[').append(entry.tag).append("] ")
+        append(entry.message)
+        entry.hex?.let { append("\n    hex: ").append(it) }
+        entry.decoded?.let { append("\n    dec: ").append(it) }
     }
 
     private fun append(entry: LogEntry) {
         _entries.update { current ->
             val next = current + entry
             if (next.size > capacity) next.subList(next.size - capacity, next.size) else next
+        }
+        if (entry.level != LogLevel.FRAME || sinkFrames) {
+            sink?.invoke(formatLine(entry))
         }
     }
 

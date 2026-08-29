@@ -15,15 +15,15 @@ production app yet — the point is that they must not be.
 
 | # | Defect | Impact | Fix |
 |---|---|---|---|
-| A1 | **`ClusterService` is written but never started.** Nothing calls `ClusterService.start()`, so the GATT link is held from a plain app scope with **no foreground service and no wake lock**. | Sub-second timers will not survive Doze or background. Not the cause of the 65 s drop (screen was on) but must be eliminated before blaming the cluster. | Start it on connect, stop on disconnect |
-| A2 | **Write type hardcoded to `WRITE_TYPE_NO_RESPONSE`.** Every writable characteristic on this cluster advertises `WRITE` only, so Write **Request** is correct. | Writes do land — icons change — so the peripheral tolerates it. Still wrong, and a candidate for the 65 s drop. | Derive from `characteristic.properties`, per `CONNECTION.md` §4 |
-| A3 | **No `CONTROL` read pump.** The vendor reads `0A10` every 700 ms; we never read anything. | Leading candidate for the 65 s disconnect. Also means rider button presses are invisible. | 700 ms scheduled read |
-| A4 | **No `GENERAL` packet.** The cluster never sees the incrementing heartbeat byte. | Second candidate for the 65 s drop. Also no acks are possible. | Minimal `GENERAL` on a 1 s timer |
-| A5 | **Connection priority never set.** | Vendor explicitly sets `BALANCED` and blames `HIGH` for a `status=8` loop. | `requestConnectionPriority(BALANCED)` |
+| A1 | *(fixed 2026-08-29)* **`ClusterService` is written but never started.** Nothing calls `ClusterService.start()`, so the GATT link is held from a plain app scope with **no foreground service and no wake lock**. | Sub-second timers will not survive Doze or background. Not the cause of the 65 s drop (screen was on) but must be eliminated before blaming the cluster. | `full`'s onboarding flow now calls `ClusterService.start()` once required permissions are granted. **Doing this for the first time surfaced a second, previously-latent bug** `[hardware]`: `onCreate()`'s `collectLatest` called `stopSelf()` on `ConnectionState.Idle` — the bootstrap state before `connect()` is ever called, not a finished session — which raced `onStartCommand()`'s `startForeground()` and crashed with `ForegroundServiceDidNotStartInTimeException` on every real launch. Fixed: only stop on `Disconnected`. |
+| A2 | *(fixed 2026-08-29, unconfirmed on hardware)* **Write type hardcoded to `WRITE_TYPE_NO_RESPONSE`.** Every writable characteristic on this cluster advertises `WRITE` only, so Write **Request** is correct. | Writes do land — icons change — so the peripheral tolerates it. Still wrong, and a candidate for the 65 s drop. | `BleClusterTransport` now derives the write type from `characteristic.properties` per `CONNECTION.md` §4. |
+| A3 | *(fixed 2026-08-29, unconfirmed on hardware)* **No `CONTROL` read pump.** The vendor reads `0A10` every 700 ms; we never read anything. | Leading candidate for the 65 s disconnect. Also means rider button presses are invisible. | `core:link`'s new `ControlPump` polls every 700 ms with whole-frame dedup and bootstrap adoption, producing the `GENERAL` ack block. Toggleable from the debug menu (tap the version string ×7 on Home) for the B4 bisect. |
+| A4 | *(fixed 2026-08-29, unconfirmed on hardware)* **No `GENERAL` packet.** The cluster never sees the incrementing heartbeat byte. | Second candidate for the 65 s drop. Also no acks are possible. | `core:link`'s new `GeneralScheduler` sends `GENERAL` every 1000 ms, v1 or v2 behind a live flag (tracker D2). Toggleable from the debug menu for B4. |
+| A5 | *(fixed 2026-08-29, unconfirmed on hardware)* **Connection priority never set, and MTU was requested before service discovery instead of after.** | Vendor explicitly sets `BALANCED` and blames `HIGH` for a `status=8` loop; the discovery/MTU ordering also did not match the documented sequence. | `ClusterLink.reduce` now requests `RequestConnectionPriority` (always `BALANCED`) and discovers services first, requesting MTU only once the TBT characteristic is confirmed present and writable. **Deliberately does not copy** the vendor's 2500 ms force-write-on-timeout fallback — see `core/link/ClusterLink.kt` KDoc. |
 | A6 | **Distance threshold is `< 999`; native uses `< 1000`.** | 999 m renders as `1.00 km` instead of `999 m`. One-metre window, cosmetic. | Use `< 1000` |
-| A7 | **Byte 13 sent as 0.** It is `takeMeHomeAck`, not reserved. | Take-Me-Home requests can never be acknowledged. | Mirror the `CONTROL` request byte |
-| A8 | **GPS sent as a boolean** setting bit 2. It is a **2-bit field** (bits 2–3): off / active / searching. | Cannot express "searching". And clearing it blanks the whole display — see B2. | Expose the 3-state enum |
-| A9 | **End-of-navigation frame is 48 zero bytes.** Native instead sends a normal frame with **byte 0 bit 0 cleared**. | Unconfirmed whether the all-zero form actually clears this cluster. | Send the native form |
+| A7 | *(fixed 2026-08-29, unconfirmed on hardware)* **Byte 13 sent as 0.** It is `takeMeHomeAck`, not reserved. | Take-Me-Home requests can never be acknowledged. | `NavState.takeMeHomeAck` now mirrors the `CONTROL` request byte through the encoder. |
+| A8 | *(fixed 2026-08-29, unconfirmed on hardware)* **GPS sent as a boolean** setting bit 2. It is a **2-bit field** (bits 2–3): off / active / searching. | Cannot express "searching". And clearing it blanks the whole display — see B2. | `NavState.gpsStatus: GpsStatus` (OFF/ACTIVE/SEARCHING) replaces the boolean; the encoder writes `gpsStatus.code shl 2`. |
+| A9 | *(fixed 2026-08-29, unconfirmed on hardware)* **End-of-navigation frame is 48 zero bytes.** Native instead sends a normal frame with **byte 0 bit 0 cleared**. | Unconfirmed whether the all-zero form actually clears this cluster. | `TbtEncoder.endNavigationFrame()` now builds the native form: byte 0 = `0x10`, byte 12 = `0x01 \| (gpsStatus shl 2)`, byte 13 = ack, checksummed. |
 | A10 | **Text capped at 31.** Native truncates to 31 then appends `.`, giving 32. | Moot on this cluster — text does not render at all. | Low priority |
 | A11 | *(fixed)* Distance-boundary sweep stepped by 2 from an even start, skipping 999 — the exact value it existed to demonstrate. | Caught by a unit test. | done |
 | A12 | *(fixed)* A log test asserted on frame bytes without pinning the clock, so it passed in the morning and failed in the afternoon. | Caught by a unit test. | done |
@@ -88,14 +88,26 @@ Reading their code is useful. Copying it is not.
 
 ## D. Open engineering questions
 
-- [ ] **D1** — Which of A1–A5 actually causes the 65 s disconnect. Fix all, confirm, bisect.
+- [ ] **D1** — Which of A2–A5 actually causes the 65 s disconnect. **All four now fixed in code
+  (2026-08-29), unconfirmed on hardware.** `ClusterController` exposes independent
+  `setControlPumpEnabled`/`setGeneralSchedulerEnabled` toggles, now reachable from the hidden
+  debug menu (tap the version string ×7 on Home, `feature:debug`) so the next ride can bisect
+  which fix actually mattered rather than only confirming all four together.
 - [ ] **D2** — Whether this cluster expects **v1 (legacy)** or **v2** packet sizes for
   `GENERAL` / `MISSED_CALL` / `ALERTS`. The vendor picks by SKU cohort, and this bike appears
   to be an **unrecognised SKU** (see `PROTOCOL.md` §2), which selects **v1**. Only affects
-  those three packets — TBT is identical either way.
+  those three packets — TBT is identical either way. `GeneralScheduler`/`GeneralEncoder` now
+  implement both behind `ClusterController.setGeneralVersion`, defaulting to v1, exposed as a
+  v1/v2 chip in the debug menu, so flipping to v2 on the bike is a tap, not a rebuild. **The v1
+  byte layout past the shared acknowledgement block is `[inferred]`, not confirmed** — see
+  `GeneralEncoder`'s KDoc. Not yet built: **B3**'s one-shot Device Information (`2A24`–`2A29`)
+  read, which would settle this from the model/firmware strings directly rather than inferring
+  it from SKU cohort — left for a later session, it needs its own read path.
 - [ ] **D3** — Whether the cluster latches a frame indefinitely while connected. The one-shot
   observation may simply have been the 65 s disconnect clearing the display.
-- [ ] **D4** — Why our text does not render when the frame is provably correct. See B3.
+- [ ] **D4** — Why our text does not render when the frame is provably correct. See B3. The
+  four-step toggle sweep (Deliverable 2b) is now runnable from the debug menu without a
+  rebuild — still **unconfirmed on hardware**, next ride's first job.
 - [ ] **D5** — `O` vs `P` u-turn handedness.
 - [x] **D6** — **Resolved 2026-08-28**: how to acquire `MISSED_CALL`/`ALERTS_INFO` permission
   support without the raw dangerous permissions Google Play's 2026 policy blocks for a non-

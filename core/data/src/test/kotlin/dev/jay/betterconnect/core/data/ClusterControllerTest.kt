@@ -4,6 +4,8 @@ import dev.jay.betterconnect.core.domain.DiagLog
 import dev.jay.betterconnect.core.domain.LogLevel
 import dev.jay.betterconnect.core.domain.SequenceRunner
 import dev.jay.betterconnect.core.domain.SequenceScripts
+import dev.jay.betterconnect.core.link.ControlPump
+import dev.jay.betterconnect.core.link.GeneralScheduler
 import dev.jay.betterconnect.core.link.SendMode
 import dev.jay.betterconnect.core.link.WriteScheduler
 import dev.jay.betterconnect.core.model.ConnectionState
@@ -43,11 +45,15 @@ class ClusterControllerTest {
         val scanner = FakeDeviceScanner()
         val encoder = TbtEncoder(clock = TestClocks.TEN_AM)
         val scheduler = WriteScheduler(transport)
+        val controlPump = ControlPump(transport)
+        val generalScheduler = GeneralScheduler(transport, controlPump.acks)
         val runner = SequenceRunner(scheduler, encoder)
         val log = DiagLog()
         val controller = ClusterController(
             transport = transport,
             scheduler = scheduler,
+            controlPump = controlPump,
+            generalScheduler = generalScheduler,
             runner = runner,
             encoder = encoder,
             scanner = scanner,
@@ -108,13 +114,13 @@ class ClusterControllerTest {
         runCurrent()
 
         f.controller.send(nav())
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 3 + 1)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 3 + 1)
         val whileConnected = f.transport.received.size
         assertTrue("expected repeats, got $whileConnected", whileConnected >= 4)
 
         f.transport.setState(ConnectionState.Disconnected(FakeClusterTransport.ADDRESS, 19))
         runCurrent()
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 5)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 5)
 
         assertEquals("nothing should be sent after a drop", whileConnected, f.transport.received.size)
     }
@@ -123,7 +129,7 @@ class ClusterControllerTest {
     fun `nothing is written before the link is ready`() = runTest {
         val f = fixture()
         f.controller.send(nav())
-        advanceTimeBy(ClusterProtocol.HEARTBEAT_MS * 4)
+        advanceTimeBy(ClusterProtocol.TBT_PERIOD_MS * 4)
 
         assertTrue(f.transport.received.isEmpty())
         assertTrue(f.controller.stats.value.notReady > 0)

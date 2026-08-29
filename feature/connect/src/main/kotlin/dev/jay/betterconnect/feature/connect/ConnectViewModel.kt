@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.jay.betterconnect.core.data.ClusterController
-import dev.jay.betterconnect.core.data.DeviceRepository
+import dev.jay.betterconnect.core.link.DeviceRepository
 import dev.jay.betterconnect.core.model.ConnectionState
 import dev.jay.betterconnect.core.model.DeviceInfo
 import kotlinx.collections.immutable.ImmutableList

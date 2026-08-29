@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.betterconnect.android.library)
     alias(libs.plugins.betterconnect.android.hilt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -16,6 +17,8 @@ dependencies {
     api(project(":core:testing"))
 
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 }
 
 dependencies {

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import dev.jay.betterconnect.core.designsystem.theme.BetterConnectTheme
 import dev.jay.betterconnect.core.designsystem.theme.MonoText
 import dev.jay.betterconnect.core.designsystem.theme.StatusColors
+import dev.jay.betterconnect.core.model.GpsStatus
 import dev.jay.betterconnect.core.protocol.DecodeResult
 import dev.jay.betterconnect.core.protocol.DecodedFrame
 import dev.jay.betterconnect.core.protocol.DistanceField
@@ -160,7 +161,14 @@ private fun ClusterContent(frame: DecodedFrame) {
                 "%d:%02d %s".format(frame.etaHour12, frame.etaMinute, if (frame.isPm) "PM" else "AM"),
             )
             ClusterStat("LEFT", frame.total.display())
-            ClusterStat("GPS", if (frame.gpsActive) "OK" else "NO FIX")
+            ClusterStat(
+                "GPS",
+                when (frame.gpsStatus) {
+                    GpsStatus.ACTIVE -> "OK"
+                    GpsStatus.SEARCHING -> "SEARCHING"
+                    GpsStatus.OFF -> "NO FIX"
+                },
+            )
             ClusterStat("ICON", "${frame.symbolChar} (0x%02X)".format(frame.symbolCode))
         }
     }

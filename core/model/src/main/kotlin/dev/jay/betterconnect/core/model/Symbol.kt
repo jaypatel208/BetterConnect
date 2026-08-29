@@ -29,6 +29,7 @@ enum class Symbol(val letter: Char, val label: String) {
     ROTARY('B', "Enter the rotary"),
     RAMP_LEFT('K', "Ramp left"),
     RAMP_RIGHT('L', "Ramp right"),
+    MERGE('V', "Merge"),
     ARRIVE('G', "Arrive at destination"),
     ;
 

@@ -121,11 +121,24 @@ connectGatt(autoConnect = false, TRANSPORT_LE)
                                      -> wait 300 ms  (renegotiation window)
                                      -> discoverServices()
   onServicesDiscovered              -> bind handles; requestMtu(256); clear queues
-                                     -> arm a 2500 ms fallback that force-enables writes
-                                        if onMtuChanged never fires
   onMtuChanged                      -> writes unblocked; push initial status packet
-  connect + 1200 ms                 -> start the CONTROL read pump
+  Ready                             -> start the CONTROL read pump and GENERAL heartbeat
 ```
+
+<!--
+Failure: an earlier version of this rule copied the vendor's fallback verbatim — arm a
+2500 ms timer that force-enables writes if onMtuChanged never fires. That is copying their
+technique, not their constraint.
+Why: this project's own rule below is "never write before onMtuChanged" — writes are
+MTU-gated, a 48-byte TBT frame needs MTU >= 51. Forcing writes at an unconfirmed MTU directly
+violates that. A link stuck waiting for onMtuChanged is diagnosable from the ride log; a link
+silently dropping oversized frames to a small negotiated MTU is not.
+Outcome: no forced-write fallback. A never-answered MTU request leaves the link in
+Discovering rather than promoting it to Ready. See core/link/ClusterLink.kt.
+-->
+
+**Never force-enable writes on an MTU timeout.** If `onMtuChanged` never fires, stay in
+`Discovering` — do not copy the vendor's 2500 ms force-write fallback.
 
 | Job | Period |
 |---|---|
@@ -136,7 +149,7 @@ connectGatt(autoConnect = false, TRANSPORT_LE)
 **The 350 ms figure is a JS-layer artefact and appears nowhere in native code — do not use it.**
 
 A reconnect repeats the **full** sequence. MTU and notification state do not survive a drop:
-clear the MTU flag, empty the queues, reset the `CONTROL` bootstrap, release the wake lock.
+clear the MTU flag, empty the queues, reset the `CONTROL` bootstrap.
 
 ## `CONTROL` decoding
 
@@ -173,9 +186,13 @@ One outstanding GATT operation per connection, enforced by a `Mutex` + `withTime
 **the timeout is the watchdog.** State is immutable and single-owner: one `StateFlow`, mutated
 only by the state machine.
 
-Everything runs inside a foreground service of type `connectedDevice` with a CPU wake lock. A
-700 ms read pump and sub-second writes do not survive Doze or OEM battery management. (Diag
-defect A1: `ClusterService` exists but nothing calls `start()`.)
+Everything runs inside a foreground service of type `connectedDevice` (`connectedDevice|location`
+once the guidance loop runs in it). **No CPU wake lock** — see the correction in
+`docs/CONNECTION.md` §10: Google's excessive-wake-locks Play vital (enforcement 2026-03-01) is
+measured while a foreground service runs, and `connectedDevice`/`location` foreground services
+have no Android 15 six-hour timeout to begin with, so a moving bike never needs one. (Diag
+defect A1, fixed: `ClusterService` exists and `.start()` is now called from `full`'s Home
+screen.)
 
 ## Permissions
 
@@ -237,11 +254,16 @@ all GATT status 8 (`GATT_CONN_TIMEOUT`). Five occurrences inside a 0.4 s spread 
 radio conditions — and BLE's maximum supervision timeout is 32 s, so it cannot be a link-layer
 timeout. Write volume is irrelevant (0.02 and 3.5 writes/s both dropped at 65 s).
 
-Ranked candidates, all still open (tracker D1): (1) we never read `CONTROL`, (2) we never send
-the `GENERAL` heartbeat, (3) wrong write type, (4) no foreground service / connection priority.
-Fix A1–A5 before theorising further.
+Ranked candidates (tracker D1), **all four now fixed in code, unconfirmed on hardware**:
+(1) `ControlPump` reads `CONTROL` every 700 ms, (2) `GeneralScheduler` sends the `GENERAL`
+heartbeat every 1000 ms, (3) `BleClusterTransport` derives write type from characteristic
+properties, (4) `ClusterService` runs as a foreground service and requests `BALANCED`
+connection priority before discovery. Each is independently toggleable from the debug menu
+(B4) so the next ride can bisect which one actually holds the link, rather than trusting all
+four landing together.
 
 **Also blocking**: our text does not render even though the frame is byte-for-byte identical to
 the vendor's (`differing byte indices: NONE`). Leading hypothesis is that the cluster does not
-enable its text region until it sees a "complete client" — i.e. `GENERAL` plus `CONTROL` reads.
-Tracker D4. This blocks the product's main differentiator.
+enable its text region until it sees a "complete client" — i.e. `GENERAL` plus `CONTROL` reads,
+which is exactly what the fix above supplies. Tracker D4, product's main differentiator,
+**still unconfirmed on hardware** — the same ride that tests D1 should test this.

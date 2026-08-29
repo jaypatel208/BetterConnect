@@ -6,8 +6,12 @@ import dev.jay.betterconnect.core.model.ConnectionState
 import dev.jay.betterconnect.core.model.GattDump
 import dev.jay.betterconnect.core.protocol.DecodeResult
 import dev.jay.betterconnect.core.protocol.DecodedFrame
+import dev.jay.betterconnect.core.protocol.DecodedGeneral
+import dev.jay.betterconnect.core.protocol.GeneralDecoder
 import dev.jay.betterconnect.core.protocol.TbtFrame
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -49,9 +53,25 @@ class FakeClusterTransport(initialState: ConnectionState = ConnectionState.Ready
     val badFrames: List<DecodeResult>
         get() = _received.map { it.decode() }.filter { it !is DecodeResult.Valid }
 
+    private val _receivedGeneral = mutableListOf<ByteArray>()
+
+    /** Every `GENERAL` frame the fake accepted, in order. */
+    val receivedGeneral: List<ByteArray> get() = _receivedGeneral.toList()
+
+    val decodedGeneral: List<DecodedGeneral> get() = _receivedGeneral.map(GeneralDecoder::decode)
+
+    val lastGeneral: DecodedGeneral? get() = decodedGeneral.lastOrNull()
+
+    private val _controlReads = MutableSharedFlow<ByteArray>(extraBufferCapacity = 32)
+    override val controlReads: SharedFlow<ByteArray> = _controlReads
+
+    private val controlReadQueue = ArrayDeque<ByteArray>()
+
     var connectCalls: Int = 0
         private set
     var disconnectCalls: Int = 0
+        private set
+    var controlReadRequests: Int = 0
         private set
 
     // ---- fault injection -------------------------------------------------------------
@@ -61,7 +81,9 @@ class FakeClusterTransport(initialState: ConnectionState = ConnectionState.Ready
 
     /**
      * When false, an accepted write stays in flight until [completeWrite] is called, so
-     * subsequent writes come back BUSY. Models the one-GATT-operation-at-a-time rule.
+     * subsequent writes come back BUSY. Models the one-GATT-operation-at-a-time rule -
+     * shared across [write], [writeGeneral] and [requestControlRead], exactly as a real
+     * GATT connection only ever has one operation outstanding regardless of characteristic.
      */
     var autoCompleteWrites: Boolean = true
 
@@ -80,6 +102,11 @@ class FakeClusterTransport(initialState: ConnectionState = ConnectionState.Ready
     }
 
     fun clearReceived() = _received.clear()
+
+    /** Queues bytes to be delivered on the next [requestControlRead]. FIFO. */
+    fun enqueueControlRead(bytes: ByteArray) {
+        controlReadQueue.addLast(bytes)
+    }
 
     // ---- transport -------------------------------------------------------------------
 
@@ -100,6 +127,27 @@ class FakeClusterTransport(initialState: ConnectionState = ConnectionState.Ready
 
         _received += frame
         if (!autoCompleteWrites) inFlight = true
+        return WriteOutcome.ACCEPTED
+    }
+
+    override fun writeGeneral(bytes: ByteArray): WriteOutcome {
+        forcedOutcome?.let { return it }
+        if (_state.value !is ConnectionState.Ready) return WriteOutcome.NOT_READY
+        if (inFlight) return WriteOutcome.BUSY
+
+        _receivedGeneral += bytes
+        if (!autoCompleteWrites) inFlight = true
+        return WriteOutcome.ACCEPTED
+    }
+
+    override fun requestControlRead(): WriteOutcome {
+        controlReadRequests++
+        forcedOutcome?.let { return it }
+        if (_state.value !is ConnectionState.Ready) return WriteOutcome.NOT_READY
+        if (inFlight) return WriteOutcome.BUSY
+
+        if (!autoCompleteWrites) inFlight = true
+        controlReadQueue.removeFirstOrNull()?.let { _controlReads.tryEmit(it) }
         return WriteOutcome.ACCEPTED
     }
 

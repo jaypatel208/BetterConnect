@@ -229,12 +229,37 @@ A reconnect must repeat §3 in full. MTU and notification state do not survive a
 
 ## 10. Staying alive in the background
 
-The vendor runs a foreground service holding a CPU wake lock, with a notification string
-reading `keeps Timer + BLE writes alive during Doze` `[dex]`.
+<!--
+Failure: this section originally said "any real client needs" a CPU wake lock, copied from
+the vendor's own technique (`[dex]`: a wake lock held for "keeps Timer + BLE writes alive
+during Doze"). Copying the vendor's constraint (staying alive) by copying their technique
+(a wake lock) is exactly the mistake CLAUDE.md warns against.
+Why: Google's excessive-wake-locks Play vital went to enforcement 2026-03-01, measured while
+an app is running a foreground service - i.e. for the whole time this app is connected. A
+one-hour ride would trip it.
+Outcome: no wake lock. It also turns out to be unnecessary - see below.
+-->
 
-Any real client needs a foreground service of type `connectedDevice`: a 700 ms read pump and
-a sub-second write cadence do not survive Doze or aggressive OEM battery management
-otherwise.
+**Do not hold a wake lock.** The vendor's own technique - a CPU wake lock justified by
+`keeps Timer + BLE writes alive during Doze` `[dex]` - is now a Play Store violation to
+copy: the *excessive wake locks* vital went to enforcement on 2026-03-01, and it is measured
+while the app is running a foreground service, which for this app is the entire time it is
+connected.
+
+It is also unnecessary. A foreground service of type `connectedDevice` (with `location` added
+once the guidance loop runs in it) keeps the app in the *active* standby bucket, and the
+Android 15 six-hour foreground-service timeout applies only to `dataSync`/`mediaProcessing` -
+`connectedDevice` and `location` have none through API 37. A moving bike does not enter Doze.
+What actually matters:
+
+- `START_REDELIVER_INTENT`, not `START_STICKY` - a sticky restart redelivers a null Intent,
+  which for a link-holding service means restarting with nothing to reconnect to.
+- No `ACCESS_BACKGROUND_LOCATION` - a `location` foreground service started from a visible
+  Activity keeps while-in-use location with the screen off; declaring the background
+  permission only invites a Play review for access the service never needed.
+- Route/ride state persisted, so an OEM background-kill (Samsung/Xiaomi/OnePlus/Huawei all
+  score worst-case on this, and there is no known developer-side fix) is recoverable rather
+  than fatal.
 
 ## 11. Permissions
 

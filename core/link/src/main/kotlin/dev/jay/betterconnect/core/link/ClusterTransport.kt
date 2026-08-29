@@ -3,6 +3,7 @@ package dev.jay.betterconnect.core.link
 import dev.jay.betterconnect.core.model.ConnectionState
 import dev.jay.betterconnect.core.model.GattDump
 import dev.jay.betterconnect.core.protocol.TbtFrame
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -11,10 +12,19 @@ import kotlinx.coroutines.flow.StateFlow
  * Everything above this interface is pure and testable; the only implementation that
  * touches android.bluetooth lives in :core:ble. The fake in :core:testing decodes each
  * frame it receives, which is what lets the whole pipeline be asserted without hardware.
+ *
+ * Three concrete operations, not a generic characteristic-addressed one - there are exactly
+ * three characteristics this app ever touches (`TBT_INFO`, `GENERAL`, `CONTROL`), and they
+ * all share the **same** underlying constraint: a BLE connection has one GATT operation
+ * outstanding at a time, full stop, regardless of which characteristic it targets. A real
+ * implementation gates all three behind one lock, not one per method.
  */
 interface ClusterTransport {
     val state: StateFlow<ConnectionState>
     val gattDump: StateFlow<GattDump?>
+
+    /** Raw bytes from a completed `CONTROL` (`0A10`) read, one element per read. */
+    val controlReads: Flow<ByteArray>
 
     fun connect(address: String)
     fun disconnect()
@@ -25,6 +35,16 @@ interface ClusterTransport {
      * rather than queueing it - a backlog of stale navigation frames is worse than a gap.
      */
     fun write(frame: TbtFrame): WriteOutcome
+
+    /** Same one-outstanding-operation rule as [write], writing `GENERAL` instead of TBT. */
+    fun writeGeneral(bytes: ByteArray): WriteOutcome
+
+    /**
+     * Asks for a `CONTROL` read. The result arrives on [controlReads], not as a return
+     * value - GATT reads are asynchronous. [WriteOutcome.ACCEPTED] means the request was
+     * issued, not that it has completed.
+     */
+    fun requestControlRead(): WriteOutcome
 }
 
 enum class WriteOutcome {

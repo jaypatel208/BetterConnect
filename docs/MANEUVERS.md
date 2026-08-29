@@ -165,6 +165,40 @@ Exit number goes in the **high nibble of byte 7**, 1–7. Taken from
 Sticky state carries the entry icon and exit number through the `ROUNDABOUT_EXIT_*`
 manoeuvre so the exit leg keeps showing the same roundabout.
 
+## 4b. Routes API `Maneuver` → icon (the one the app actually receives)
+
+**§4 above is the *Navigation SDK* `Maneuver` vocabulary — a different enum from the one the
+production app receives.** We route through the Routes API `computeRoutes` endpoint (phase 2
+plan), not the Navigation SDK, and its `Maneuver` enum is a smaller, differently-named 21-value
+set verified directly against Google's current API reference on 2026-08-29 (not assumed from
+§4). `core/domain/ManeuverMapper.kt` is the single source of truth; this table mirrors it so the
+two never drift silently.
+
+| Routes API `Maneuver` | Byte | Caption | Note |
+|---|---|---|---|
+| `MANEUVER_UNSPECIFIED` | *(hold previous)* | — | No confident mapping — never guessed at |
+| `TURN_SLIGHT_LEFT` / `_RIGHT` | `C` / `D` | SLIGHT LEFT / RIGHT | |
+| `TURN_SHARP_LEFT` / `_RIGHT` | `E` / `F` | SHARP LEFT / RIGHT | |
+| `TURN_LEFT` / `_RIGHT` | `I` / `J` | TURN LEFT / RIGHT | |
+| `UTURN_LEFT` | `P` | U TURN | D5: handedness unconfirmed on hardware, best guess |
+| `UTURN_RIGHT` | `O` | U TURN | D5: handedness unconfirmed on hardware, best guess |
+| `STRAIGHT` / `DEPART` / `NAME_CHANGE` | `G` | CONTINUE | |
+| `RAMP_LEFT` / `_RIGHT` | `K` / `L` | EXIT LEFT / RIGHT | Unlike §4, ramps get their own icon — the vendor leaves `K`/`L` unused |
+| `MERGE` | `V` | MERGE | |
+| `FORK_LEFT` / `_RIGHT` | `C` / `D` (keep-fork) | KEEP LEFT / RIGHT | Same bytes as slight turn — the hardware draws one shape for both |
+| `FERRY` / `FERRY_TRAIN` | `G` | FERRY | No ferry icon exists on this cluster; the caption carries the distinction |
+| `ROUNDABOUT_LEFT` / `_RIGHT` | `I` / `J` | ROUNDABOUT | `N`/`U` are inert (B4) and the Routes API returns no exit number at all — falls back to the exit turn direction, never a roundabout icon |
+| everything unmapped | *(hold previous)* | — | **Never `B`** — see C4. Logged as a WARN so an unmapped code is a bug to fix, not an arrow to guess |
+
+The inert set on this cluster — never emitted regardless of table — is `M S T U W Y N` (trap B1).
+
+**What's different from §4, deliberately:**
+- No `B` (`WRONG_WAY`) fallback anywhere — an unmapped maneuver holds the previous icon instead.
+- Ramps get real ramp icons (`K`/`L`) rather than being flattened into plain turns.
+- The Routes API response carries **no roundabout exit number** at all (unlike the Navigation
+  SDK's `getRoundaboutTurnNumber()`), so `NavState.roundaboutExit` stays 0 — not a gap in our
+  code, a gap in the data we receive.
+
 ## 5. `A`–`Z` sweep — RESULTS
 
 Run on a Pulsar N160 UG, full alphabet, constant 500 m / `TEST ROAD` `[hardware]`.

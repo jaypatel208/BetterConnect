@@ -12,6 +12,8 @@ from `com.bajajconnect.rideapp` v1.11.1 and verified against a **Pulsar N160 UG 
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | Engineering guide for building a client well on modern Android. |
 | [`FIELD-TESTS.md`](FIELD-TESTS.md) | **Every open question as a bike test.** Fill in the Observed columns. |
 | [`DEVELOPMENT-NOTES.md`](DEVELOPMENT-NOTES.md) | **Bugs found and traps to avoid.** Read before writing the production app. |
+| [`SETUP.md`](SETUP.md) | Bringing your own Google Maps/Routes API key to build and run `full`'s navigation screen. |
+| [`RELEASING.md`](RELEASING.md) | How `full` gets versioned, signed and published as a GitHub Release on every push to `main`. |
 
 The diagnostic Android build that proved this protocol against real hardware lives in the
 repository root — see [`../README.md`](../README.md).

@@ -1,5 +1,6 @@
 package dev.jay.betterconnect.core.protocol
 
+import dev.jay.betterconnect.core.model.GpsStatus
 import dev.jay.betterconnect.core.model.NavState
 import dev.jay.betterconnect.core.model.Symbol
 import org.junit.Assert.assertEquals
@@ -23,7 +24,7 @@ class GoldenFrameTest {
         distanceLeftM = 12_300,
         etaSeconds = 45 * 60,
         text = "MG ROAD",
-        gpsActive = true,
+        gpsStatus = GpsStatus.ACTIVE,
     )
 
     private val goldenBytes = intArrayOf(
@@ -60,16 +61,26 @@ class GoldenFrameTest {
         assertEquals(45, frame.etaMinute)
         assertEquals(false, frame.isPm)
         assertEquals(0, frame.roundaboutExit)
-        assertEquals(true, frame.gpsActive)
+        assertEquals(GpsStatus.ACTIVE, frame.gpsStatus)
         assertEquals("MG ROAD", frame.text)
         assertEquals(true, frame.constantBitSet)
     }
 
+    /**
+     * A9: the native end-of-navigation frame is byte 0 = `0x10` with the constant bit
+     * cleared, not an all-zero buffer - an explicit "navigation inactive" signal.
+     */
     @Test
-    fun `end navigation frame is 48 zero bytes and self-consistent`() {
+    fun `end navigation frame is the native form, not all zeros`() {
         val frame = TbtEncoder.endNavigationFrame()
         assertEquals(ClusterProtocol.TBT_SIZE, frame.size)
-        assertTrue(frame.all { it == 0.toByte() })
-        assertTrue("all-zero frame must be a valid frame", Checksum.isValid(frame))
+        assertEquals(0x10, frame[0].toInt() and 0xFF)
+        assertEquals(0, frame[1].toInt() and 0xFF)
+        assertTrue("native end frame must itself be a valid frame", Checksum.isValid(frame))
+
+        val decoded = (TbtDecoder.decode(frame) as DecodeResult.Valid).frame
+        assertEquals(false, decoded.constantBitSet)
+        assertEquals(GpsStatus.ACTIVE, decoded.gpsStatus)
+        assertEquals(0, decoded.takeMeHomeAck)
     }
 }

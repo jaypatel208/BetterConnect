@@ -22,12 +22,17 @@ import dev.jay.betterconnect.core.model.GattDump
 import dev.jay.betterconnect.core.model.GattService
 import dev.jay.betterconnect.core.protocol.ClusterProtocol
 import dev.jay.betterconnect.core.protocol.TbtFrame
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,6 +56,9 @@ class BleClusterTransport @Inject constructor(
     private val _gattDump = MutableStateFlow<GattDump?>(null)
     override val gattDump: StateFlow<GattDump?> = _gattDump.asStateFlow()
 
+    private val _controlReads = MutableSharedFlow<ByteArray>(extraBufferCapacity = 32)
+    override val controlReads: SharedFlow<ByteArray> = _controlReads
+
     /** Observable side channel so the log can record link events verbatim. */
     private val _events = MutableStateFlow<LinkEvent?>(null)
     val events: StateFlow<LinkEvent?> = _events.asStateFlow()
@@ -59,12 +67,28 @@ class BleClusterTransport @Inject constructor(
         context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
 
     private var gatt: BluetoothGatt? = null
-    private var characteristic: BluetoothGattCharacteristic? = null
+    private var tbtCharacteristic: BluetoothGattCharacteristic? = null
+    private var generalCharacteristic: BluetoothGattCharacteristic? = null
+    private var controlCharacteristic: BluetoothGattCharacteristic? = null
     private var negotiatedMtu: Int = ClusterLink.UNKNOWN_MTU
 
-    /** Only one GATT operation may be outstanding. Guards the drop-don't-queue rule. */
-    @Volatile
-    private var inFlight = false
+    /**
+     * One GATT operation outstanding at a time, across all three characteristics - a BLE
+     * connection has exactly one in-flight operation regardless of which characteristic it
+     * targets. `tryLock()` gives the drop-don't-queue behaviour non-suspending callers need;
+     * the watchdog coroutine launched alongside every successful lock releases it even if
+     * the expected callback never fires, which a bare boolean flag cannot do on its own.
+     */
+    private val gattMutex = Mutex()
+    private var pendingCompletion: CompletableDeferred<Unit>? = null
+
+    /**
+     * Identity of the [pendingCompletion] the current lock belongs to. A watchdog that
+     * times out only unlocks if this is still *its own* completion - otherwise the lock
+     * has already been released (and possibly re-acquired by a newer operation) and
+     * touching it again would release someone else's lock instead of its own.
+     */
+    private var lockOwner: CompletableDeferred<Unit>? = null
 
     private var userWantsConnection = false
 
@@ -80,31 +104,108 @@ class BleClusterTransport @Inject constructor(
 
     override fun write(frame: TbtFrame): WriteOutcome {
         val activeGatt = gatt ?: return WriteOutcome.NOT_READY
-        val target = characteristic ?: return WriteOutcome.NOT_READY
+        val target = tbtCharacteristic ?: return WriteOutcome.NOT_READY
         if (_state.value !is ConnectionState.Ready) return WriteOutcome.NOT_READY
-        if (inFlight) return WriteOutcome.BUSY
+        return performWrite(activeGatt, target, frame.bytes)
+    }
 
-        inFlight = true
+    override fun writeGeneral(bytes: ByteArray): WriteOutcome {
+        val activeGatt = gatt ?: return WriteOutcome.NOT_READY
+        val target = generalCharacteristic ?: return WriteOutcome.NOT_READY
+        if (_state.value !is ConnectionState.Ready) return WriteOutcome.NOT_READY
+        return performWrite(activeGatt, target, bytes)
+    }
+
+    override fun requestControlRead(): WriteOutcome {
+        val activeGatt = gatt ?: return WriteOutcome.NOT_READY
+        val target = controlCharacteristic ?: return WriteOutcome.NOT_READY
+        if (_state.value !is ConnectionState.Ready) return WriteOutcome.NOT_READY
+        if (!gattMutex.tryLock()) return WriteOutcome.BUSY
+
+        val completion = CompletableDeferred<Unit>()
+        pendingCompletion = completion
+        lockOwner = completion
+        armWatchdog(completion)
+
+        val accepted = activeGatt.readCharacteristic(target)
+        if (!accepted) {
+            completeOperation()
+            return WriteOutcome.FAILED
+        }
+        return WriteOutcome.ACCEPTED
+    }
+
+    private fun performWrite(
+        activeGatt: BluetoothGatt,
+        target: BluetoothGattCharacteristic,
+        bytes: ByteArray,
+    ): WriteOutcome {
+        if (!gattMutex.tryLock()) return WriteOutcome.BUSY
+
+        val completion = CompletableDeferred<Unit>()
+        pendingCompletion = completion
+        lockOwner = completion
+        armWatchdog(completion)
+
+        // Never hardcode the write type (A2/C1): derive it from the characteristic's own
+        // advertised properties. Every writable characteristic on this cluster advertises
+        // WRITE and not WRITE_NO_RESPONSE, so Write Request is correct - a Write Command
+        // sent to a WRITE-only characteristic has undefined handling on the peripheral
+        // side. CONNECTION.md §4.
+        val writeType = target.writeTypeFor()
         val accepted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            activeGatt.writeCharacteristic(
-                target,
-                frame.bytes,
-                BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
-            ) == BluetoothStatusCodes.SUCCESS
+            activeGatt.writeCharacteristic(target, bytes, writeType) == BluetoothStatusCodes.SUCCESS
         } else {
             @Suppress("DEPRECATION")
             run {
-                target.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                target.value = frame.bytes
+                target.writeType = writeType
+                target.value = bytes
                 activeGatt.writeCharacteristic(target)
             }
         }
 
         if (!accepted) {
-            inFlight = false
+            completeOperation()
             return WriteOutcome.FAILED
         }
         return WriteOutcome.ACCEPTED
+    }
+
+    /**
+     * Falls back to releasing [gattMutex] if `onCharacteristicWrite`/`onCharacteristicRead`
+     * never fires - the exact failure the bare `@Volatile inFlight` flag this replaces could
+     * not recover from, which would strand every future write BUSY forever. Guarded by
+     * [lockOwner] so a watchdog that fires after [completeOperation] already released (and
+     * something else already re-acquired) the lock never touches it a second time.
+     */
+    private fun armWatchdog(completion: CompletableDeferred<Unit>) {
+        scope.launch {
+            val finished = withTimeoutOrNull(GATT_OP_TIMEOUT_MS) { completion.await() }
+            if (finished == null) {
+                Log.w(TAG, "GATT operation timed out after ${GATT_OP_TIMEOUT_MS}ms")
+                unlockIfOwner(completion)
+            }
+        }
+    }
+
+    /**
+     * Signals the armed watchdog that the operation finished and releases the lock right
+     * away, rather than waiting for the watchdog coroutine to be scheduled - callers such
+     * as `SendEndNavigation` issue a follow-up write in the same call stack and need the
+     * lock free synchronously, not on the next dispatch.
+     */
+    private fun completeOperation() {
+        val completion = pendingCompletion
+        pendingCompletion = null
+        completion?.complete(Unit)
+        unlockIfOwner(completion)
+    }
+
+    private fun unlockIfOwner(completion: CompletableDeferred<Unit>?) {
+        if (completion != null && lockOwner === completion) {
+            lockOwner = null
+            if (gattMutex.isLocked) gattMutex.unlock()
+        }
     }
 
     // ---- reducer plumbing ------------------------------------------------------------
@@ -120,19 +221,26 @@ class BleClusterTransport @Inject constructor(
         when (command) {
             is LinkCommand.Connect -> openGatt(command.address)
 
-            is LinkCommand.RequestMtu -> {
-                val requested = gatt?.requestMtu(command.mtu) == true
-                if (!requested) dispatch(LinkEvent.MtuRequestFailed)
+            LinkCommand.RequestConnectionPriority -> {
+                // Never HIGH: the vendor's own code documents that HIGH renegotiation on
+                // API 35+ causes a status=8 disconnect loop. CONNECTION.md §7.
+                gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
             }
 
-            LinkCommand.DiscoverServices -> {
+            is LinkCommand.DiscoverServices -> scope.launch {
+                if (command.delayMs > 0) delay(command.delayMs)
                 if (gatt?.discoverServices() != true) {
                     Log.w(TAG, "discoverServices() refused")
                 }
             }
 
+            is LinkCommand.RequestMtu -> {
+                val requested = gatt?.requestMtu(command.mtu) == true
+                if (!requested) dispatch(LinkEvent.MtuRequestFailed)
+            }
+
             LinkCommand.SendEndNavigation -> {
-                inFlight = false
+                completeOperation()
                 write(TbtFrame.endNavigation())
             }
 
@@ -165,8 +273,10 @@ class BleClusterTransport @Inject constructor(
     }
 
     private fun closeGatt() {
-        characteristic = null
-        inFlight = false
+        tbtCharacteristic = null
+        generalCharacteristic = null
+        controlCharacteristic = null
+        completeOperation()
         gatt?.runCatching { disconnect() }
         gatt?.runCatching { close() }
         gatt = null
@@ -191,19 +301,71 @@ class BleClusterTransport @Inject constructor(
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             val dump = g.toDump(negotiatedMtu)
             _gattDump.value = dump
-            characteristic = g.getService(ClusterProtocol.SERVICE_UUID)
-                ?.getCharacteristic(ClusterProtocol.TBT_INFO_UUID)
+            val service = g.getService(ClusterProtocol.SERVICE_UUID)
+            tbtCharacteristic = service?.getCharacteristic(ClusterProtocol.TBT_INFO_UUID)
+            generalCharacteristic = service?.getCharacteristic(ClusterProtocol.GENERAL_UUID)
+            controlCharacteristic = service?.getCharacteristic(ClusterProtocol.ACTION_UUID)
             dispatch(LinkEvent.ServicesResolved(dump))
         }
 
         override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
-            inFlight = false
+            completeOperation()
             if (status != BluetoothGatt.GATT_SUCCESS) Log.w(TAG, "write failed status=$status")
+        }
+
+        // Only actually invoked below API 33; the ByteArray overload below takes over on
+        // API 33+ per the platform's own dispatch rule for this callback pair.
+        @Suppress("DEPRECATION")
+        @Deprecated("Superseded by the (gatt, characteristic, value, status) overload on API 33+")
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            c: BluetoothGattCharacteristic,
+            status: Int,
+        ) {
+            val bytes = c.value
+            onControlReadCompleted(status, bytes)
+        }
+
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            c: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int,
+        ) {
+            onControlReadCompleted(status, value)
+        }
+
+        private fun onControlReadCompleted(status: Int, bytes: ByteArray?) {
+            completeOperation()
+            if (status == BluetoothGatt.GATT_SUCCESS && bytes != null) {
+                _controlReads.tryEmit(bytes)
+            } else if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.w(TAG, "CONTROL read failed status=$status")
+            }
         }
     }
 
     companion object {
         private const val TAG = "NavBridge.Ble"
+
+        /**
+         * Bounds how long a write/read is allowed to stay "in flight" with no callback.
+         * Without this a single stalled callback would strand the shared GATT lock and
+         * every future operation would return BUSY forever.
+         */
+        private const val GATT_OP_TIMEOUT_MS = 5_000L
+    }
+}
+
+/** Write Request for a WRITE-only characteristic, Write Command otherwise. CONNECTION.md §4. */
+private fun BluetoothGattCharacteristic.writeTypeFor(): Int {
+    val writable = properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
+    val writeNoResponseOnly = properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0 &&
+        !writable
+    return if (writeNoResponseOnly) {
+        BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+    } else {
+        BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
     }
 }
 

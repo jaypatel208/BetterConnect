@@ -86,7 +86,7 @@ class BleScanner @Inject constructor(@param:ApplicationContext private val conte
             DeviceInfo(
                 address = device.address,
                 name = device.name,
-                rssi = RSSI_UNKNOWN,
+                rssi = DeviceInfo.RSSI_UNKNOWN,
                 bonded = true,
                 connectable = true,
             )
@@ -127,6 +127,5 @@ class BleScanner @Inject constructor(@param:ApplicationContext private val conte
 
     companion object {
         private const val TAG = "NavBridge.Scan"
-        const val RSSI_UNKNOWN = -127
     }
 }

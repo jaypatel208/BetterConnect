@@ -1,5 +1,6 @@
 package dev.jay.betterconnect.core.protocol
 
+import dev.jay.betterconnect.core.model.GpsStatus
 import dev.jay.betterconnect.core.model.SymbolCatalog
 
 /**
@@ -17,10 +18,10 @@ data class DecodedFrame(
     val etaMinute: Int,
     val isPm: Boolean,
     val roundaboutExit: Int,
-    val gpsActive: Boolean,
+    val gpsStatus: GpsStatus,
     val text: String,
     val checksum: Int,
-    val reservedByte13: Int,
+    val takeMeHomeAck: Int,
     val reservedByte46: Int,
     val constantBitSet: Boolean,
 ) {
@@ -79,10 +80,10 @@ object TbtDecoder {
             etaMinute = buffer[6].toInt() and 0xFF,
             isPm = flags and TbtEncoder.FLAG_PM != 0,
             roundaboutExit = (byte7 shr 4) and 0x0F,
-            gpsActive = flags2 and TbtEncoder.FLAG2_GPS_ACTIVE != 0,
+            gpsStatus = GpsStatus.fromCode(flags2 shr TbtEncoder.FLAG2_GPS_SHIFT),
             text = TextCodec.readFrom(buffer),
             checksum = buffer[ClusterProtocol.CHECKSUM_INDEX].toInt() and 0xFF,
-            reservedByte13 = buffer[13].toInt() and 0xFF,
+            takeMeHomeAck = buffer[13].toInt() and 0xFF,
             reservedByte46 = buffer[46].toInt() and 0xFF,
             constantBitSet = flags and TbtEncoder.FLAG_CONSTANT != 0,
         )

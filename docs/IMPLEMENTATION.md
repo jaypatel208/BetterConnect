@@ -221,6 +221,32 @@ resolves them, prefer a confirmed neighbour over a plausible guess.
 Send the native end frame — byte 0 with **bit 0 cleared** — rather than an all-zero buffer.
 It is an explicit "navigation inactive" signal. See `PROTOCOL.md` §4.
 
+### As built (2026-08-29)
+
+- **`MANEUVERS.md` §4 turned out to be the wrong enum.** It documents the Navigation SDK's
+  `Maneuver` vocabulary; we route requests through the Routes API instead (`docs/SETUP.md`),
+  which returns its own, differently-named 21-value enum. `MANEUVERS.md` §4b and
+  `core/domain/ManeuverMapper.kt` are the ones that actually ship — §4 stays for reference
+  since it is still the more complete table for *intent*, but is not what the app receives.
+- **`core/domain` is pure `[jvm]`, entirely offline-testable**: `PolylineCodec` (Google's
+  encoded-polyline, decode+encode), `ManeuverMapper` (above), `GuidanceEngine.advance()`
+  (haversine step-advance/off-route detection) and `.buildNavState()` (arrival handling, GPS
+  never cleared while navigating, holds the previous symbol on an unmapped maneuver). None of
+  it needs hardware or an API key to test — `core/testing`'s `FakeRoutesRepository` and
+  `FakeLocationFixSource` cover the whole loop.
+- **`core/data/GuidanceController`** is the singleton that actually runs the loop: owns the
+  location stream, calls `GuidanceEngine`, sends the resulting `NavState` through
+  `ClusterController`, and — the off-route billing guard the plan called for — debounces and
+  caps re-fetches (`MIN_REROUTE_INTERVAL_MS` floor, `MAX_REROUTES_PER_TRIP` cap) since
+  two-wheeler routing is the billed Enterprise SKU. It runs at service lifetime
+  (`ClusterService`), not ViewModel lifetime, so closing the nav screen does not stop guidance.
+- **The caption vocabulary above is implemented via `ManeuverMapper`'s caption strings** —
+  same words, same ≤12-char discipline — rather than a separate lookup, so the icon and the
+  caption can never drift out of sync with each other.
+- **D4 remains open.** The four-step toggle sweep this section's "Dependency" note describes
+  is now buildable and runnable from the hidden debug menu (`feature:debug`) without a
+  rebuild, but has not yet been run on the bike — see `DEVELOPMENT-NOTES.md` D4.
+
 ## 5. The return channel
 
 Read `CONTROL` every 700 ms and decode it even if you act on nothing. It is likely required

@@ -4,6 +4,8 @@ import app.cash.turbine.test
 import dev.jay.betterconnect.core.data.ClusterController
 import dev.jay.betterconnect.core.domain.DiagLog
 import dev.jay.betterconnect.core.domain.SequenceRunner
+import dev.jay.betterconnect.core.link.ControlPump
+import dev.jay.betterconnect.core.link.GeneralScheduler
 import dev.jay.betterconnect.core.link.WriteScheduler
 import dev.jay.betterconnect.core.model.ConnectionState
 import dev.jay.betterconnect.core.model.UnsupportedReason
@@ -37,9 +39,13 @@ class InspectViewModelTest {
         val transport = FakeClusterTransport(ConnectionState.Idle)
         private val encoder = TbtEncoder()
         private val scheduler = WriteScheduler(transport)
+        private val controlPump = ControlPump(transport)
+        private val generalScheduler = GeneralScheduler(transport, controlPump.acks)
         val controller = ClusterController(
             transport = transport,
             scheduler = scheduler,
+            controlPump = controlPump,
+            generalScheduler = generalScheduler,
             runner = SequenceRunner(scheduler, encoder),
             encoder = encoder,
             scanner = FakeDeviceScanner(),

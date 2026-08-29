@@ -48,6 +48,23 @@ class XViewModelTest {
   `advanceUntilIdle`. Never `Thread.sleep`, never a real delay.
 - **Hand anything holding a long-lived collector `backgroundScope`**, not the `TestScope` —
   otherwise `runTest` waits forever for a coroutine that is never meant to finish.
+
+<!--
+Failure: GuidanceControllerTest used advanceUntilIdle() after pushing a fix through a fake
+push-based Flow (MutableSharedFlow.tryEmit) into a backgroundScope collector. The collector
+never ran - confirmed with a bare MutableSharedFlow reproduction, no GuidanceController
+involved. runCurrent() in the same spot worked immediately.
+Why: advanceUntilIdle() does not reliably resume a backgroundScope-launched collector woken by
+an external, non-delay trigger. The delay-driven schedulers elsewhere (WriteScheduler,
+ControlPump, GeneralScheduler) never hit this because delay() is what advanceUntilIdle/
+advanceTimeBy are built to drive; tryEmit isn't.
+Outcome: after emitting into any push-based fake Flow (a SharedFlow-backed fake source, not a
+delay loop) collected on backgroundScope, call runCurrent(), not advanceUntilIdle(). If a test
+starts failing with the collector simply never having run, this is the first thing to check.
+-->
+- **After `tryEmit`-ing into a push-based fake `Flow`** (a `SharedFlow`-backed fake location/
+  sensor source, not a `delay`-loop scheduler) collected on `backgroundScope`, call
+  `runCurrent()`, not `advanceUntilIdle()` — the latter does not reliably wake that collector.
 - `MainDispatcherRule` via `@get:Rule` in ViewModel tests.
 - JUnit 4 with plain `org.junit.Assert.*`. Prefer the message-first overload when the failure
   would otherwise be cryptic.

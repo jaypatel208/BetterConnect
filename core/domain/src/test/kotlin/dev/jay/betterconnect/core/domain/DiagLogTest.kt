@@ -63,4 +63,41 @@ class DiagLogTest {
         log.clear()
         assertTrue(log.entries.value.isEmpty())
     }
+
+    @Test
+    fun `an attached sink receives every non-frame entry`() {
+        val log = DiagLog()
+        val lines = mutableListOf<String>()
+        log.sink = { lines += it }
+
+        log.log(LogLevel.INFO, "LINK", "connected", nowMs = 1)
+        log.log(LogLevel.WARN, "LINK", "disconnected status=8", nowMs = 2)
+
+        assertEquals(2, lines.size)
+        assertTrue(lines[0].contains("connected"))
+        assertTrue(lines[1].contains("disconnected status=8"))
+    }
+
+    @Test
+    fun `the sink does not receive frame entries by default`() {
+        val log = DiagLog()
+        val lines = mutableListOf<String>()
+        log.sink = { lines += it }
+
+        log.frame("BLE", frame, nowMs = 1, outcome = "ACCEPTED")
+
+        assertTrue("an hour of frames would make the ride log unreadable", lines.isEmpty())
+    }
+
+    @Test
+    fun `sinkFrames opts back in for frame-level debugging`() {
+        val log = DiagLog()
+        val lines = mutableListOf<String>()
+        log.sink = { lines += it }
+        log.sinkFrames = true
+
+        log.frame("BLE", frame, nowMs = 1, outcome = "ACCEPTED")
+
+        assertEquals(1, lines.size)
+    }
 }

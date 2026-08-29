@@ -7,6 +7,7 @@ import dev.jay.betterconnect.core.data.ClusterController
 import dev.jay.betterconnect.core.link.SendMode
 import dev.jay.betterconnect.core.link.WriteStats
 import dev.jay.betterconnect.core.model.ConnectionState
+import dev.jay.betterconnect.core.model.GpsStatus
 import dev.jay.betterconnect.core.model.NavState
 import dev.jay.betterconnect.core.model.Symbol
 import dev.jay.betterconnect.core.model.SymbolCatalog
@@ -113,7 +114,7 @@ class SignalsViewModel @Inject constructor(private val controller: ClusterContro
                 etaSeconds = 15 * 60,
                 text = c.text,
                 roundaboutExit = c.roundaboutExit,
-                gpsActive = c.gpsActive,
+                gpsStatus = if (c.gpsActive) GpsStatus.ACTIVE else GpsStatus.OFF,
             ),
         )
     }

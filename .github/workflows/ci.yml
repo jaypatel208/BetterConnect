@@ -50,3 +50,94 @@ jobs:
             build/reports/kover/
             **/build/outputs/roborazzi/
           retention-days: 14
+
+  # `full` is the rider-facing product; `diag` is a diagnostic harness that never ships to a
+  # rider, so only `full` gets a release build, a GitHub Release and a version number.
+  # Runs only for a real push to main - never for a pull request - so opening a PR never cuts
+  # a release.
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history: versionCode is the commit count, which needs the whole graph, not
+          # the single-commit shallow clone actions/checkout defaults to.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # versionCode: total commits reachable from this one - monotonically increasing by
+      # construction, reproducible from git history alone, and needs no external counter.
+      # versionName: MAJOR.MINOR (source-controlled, app/build.gradle.kts) plus that same
+      # count as the patch, so the two numbers agree and either one identifies the exact build.
+      - name: Compute version
+        id: version
+        run: |
+          CODE=$(git rev-list --count HEAD)
+          NAME="0.1.${CODE}"
+          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+
+      # Release signing is optional here: with no keystore secrets configured yet, the build
+      # falls back to debug signing (app/build.gradle.kts) so this job stays green - see
+      # docs/RELEASING.md for wiring up real release signing before distributing this build
+      # to anyone but yourself.
+      - name: Write release keystore
+        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > release.keystore
+          cat > keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${RELEASE_KEYSTORE_PASSWORD}
+          keyAlias=${RELEASE_KEY_ALIAS}
+          keyPassword=${RELEASE_KEY_PASSWORD}
+          EOF
+
+      # APK for direct sideload install (the only distribution channel this app currently
+      # has); AAB alongside it since it costs one more Gradle task and covers a future Play
+      # Store upload without another release pipeline to build.
+      - name: Build full release APK and AAB
+        run: |
+          ./gradlew assembleFullRelease bundleFullRelease \
+            -PVERSION_CODE=${{ steps.version.outputs.code }} \
+            -PVERSION_NAME=${{ steps.version.outputs.name }}
+
+      - name: Checksums
+        run: |
+          cd app/build/outputs
+          sha256sum apk/full/release/app-full-release.apk \
+            bundle/fullRelease/app-full-release.aab > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Rename outputs to include the version
+        run: |
+          mkdir -p release-artifacts
+          cp app/build/outputs/apk/full/release/app-full-release.apk \
+            "release-artifacts/BetterConnect-${{ steps.version.outputs.name }}.apk"
+          cp app/build/outputs/bundle/fullRelease/app-full-release.aab \
+            "release-artifacts/BetterConnect-${{ steps.version.outputs.name }}.aab"
+          cp app/build/outputs/SHA256SUMS.txt release-artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: v${{ steps.version.outputs.name }}
+          generate_release_notes: true
+          files: release-artifacts/*

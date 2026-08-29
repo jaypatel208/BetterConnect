@@ -1,5 +1,6 @@
 package dev.jay.betterconnect.core.protocol
 
+import dev.jay.betterconnect.core.model.GpsStatus
 import dev.jay.betterconnect.core.model.NavState
 import dev.jay.betterconnect.core.model.Symbol
 import org.junit.Assert.assertEquals
@@ -33,10 +34,10 @@ class RoundTripTest {
         assertEquals("turn for $nav", DistanceCodec.encode(nav.distanceToTurnM), frame.turn)
         assertEquals("total for $nav", DistanceCodec.encode(nav.distanceLeftM), frame.total)
         assertEquals("exit for $nav", nav.roundaboutExit, frame.roundaboutExit)
-        assertEquals("gps for $nav", nav.gpsActive, frame.gpsActive)
+        assertEquals("gps for $nav", nav.gpsStatus, frame.gpsStatus)
         assertEquals("text for $nav", TextCodec.sanitise(nav.text), frame.text)
         assertTrue("constant bit for $nav", frame.constantBitSet)
-        assertEquals("byte 13 reserved", 0, frame.reservedByte13)
+        assertEquals("byte 13 mirrors takeMeHomeAck", nav.takeMeHomeAck, frame.takeMeHomeAck)
         assertEquals("byte 46 reserved", 0, frame.reservedByte46)
     }
 
@@ -129,16 +130,34 @@ class RoundTripTest {
     }
 
     @Test
-    fun `gps inactive round trips`() {
-        assertRoundTrip(
-            NavState(
-                symbol = Symbol.LEFT,
-                distanceToTurnM = 200,
-                distanceLeftM = 2_000,
-                etaSeconds = 120,
-                text = "NO FIX",
-                gpsActive = false,
-            ),
-        )
+    fun `every gps status round trips`() {
+        GpsStatus.entries.forEach { status ->
+            assertRoundTrip(
+                NavState(
+                    symbol = Symbol.LEFT,
+                    distanceToTurnM = 200,
+                    distanceLeftM = 2_000,
+                    etaSeconds = 120,
+                    text = "GPS ${status.name}",
+                    gpsStatus = status,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `take me home ack mirrors the control request byte`() {
+        for (ack in listOf(0, 1, 2, 255)) {
+            assertRoundTrip(
+                NavState(
+                    symbol = Symbol.STRAIGHT,
+                    distanceToTurnM = 300,
+                    distanceLeftM = 3_000,
+                    etaSeconds = 60,
+                    text = "ACK",
+                    takeMeHomeAck = ack,
+                ),
+            )
+        }
     }
 }

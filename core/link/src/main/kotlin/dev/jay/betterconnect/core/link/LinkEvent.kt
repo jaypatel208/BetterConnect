@@ -24,8 +24,13 @@ sealed interface LinkEvent {
 /** Side effects the reducer asks the Android layer to perform. */
 sealed interface LinkCommand {
     data class Connect(val address: String) : LinkCommand
+
+    /** Always `BALANCED` - `HIGH` is what causes the status=8 disconnect loop. CONNECTION.md §7. */
+    data object RequestConnectionPriority : LinkCommand
+
+    /** [delayMs] lets the priority request settle before discovery, per the connect ordering. */
+    data class DiscoverServices(val delayMs: Long = 0) : LinkCommand
     data class RequestMtu(val mtu: Int) : LinkCommand
-    data object DiscoverServices : LinkCommand
     data object Close : LinkCommand
     data class ScheduleReconnect(val address: String, val delayMs: Long) : LinkCommand
 

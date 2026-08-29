@@ -13,5 +13,8 @@ dependencies {
     api(project(":core:link"))
 
     // BlePermissions/FullPermissions/SpecialAccess need ContextCompat/NotificationManagerCompat.
-    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core)
+
+    implementation(libs.play.services.location)
+    implementation(libs.kotlinx.coroutines.play.services)
 }
