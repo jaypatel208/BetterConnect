@@ -93,14 +93,21 @@ jobs:
       # falls back to debug signing (app/build.gradle.kts) so this job stays green - see
       # docs/RELEASING.md for wiring up real release signing before distributing this build
       # to anyone but yourself.
+      #
+      # The presence check happens in bash, not in this step's `if:` - the `secrets` context
+      # is only valid in a handful of places (env:, with:, ...) and step-level `if:` isn't
+      # one of them, so `if: secrets.X != ''` fails workflow validation outright.
       - name: Write release keystore
-        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "No release signing secrets configured - falling back to debug signing. See docs/RELEASING.md."
+            exit 0
+          fi
           echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > release.keystore
           cat > keystore.properties <<EOF
           storeFile=release.keystore
