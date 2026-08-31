@@ -30,8 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation3.runtime.EntryProviderScope
-import androidx.navigation3.runtime.NavKey
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
@@ -43,16 +41,14 @@ import com.google.maps.android.compose.rememberUpdatedMarkerState
 import dev.jay.betterconnect.core.designsystem.component.ManeuverGlyph
 import dev.jay.betterconnect.core.domain.PolylineCodec
 import dev.jay.betterconnect.core.model.LatLng
-import kotlinx.serialization.Serializable
 import com.google.android.gms.maps.model.LatLng as GmsLatLng
 
-@Serializable
-data object Navigation : NavKey
-
-fun EntryProviderScope<NavKey>.navigationEntry(onClose: () -> Unit) {
-    entry<Navigation> { NavigationRoute(onClose = onClose) }
-}
-
+/**
+ * This is the whole "Navigate" tab's content - not a screen you navigate to and back from.
+ * Reachable at all times alongside Connect, with or without an active cluster link: the map,
+ * destination search and route preview all work standalone; only [NavigationAction.StartNavigation]
+ * needs a connection (see [NavigationUiState.canStart]).
+ */
 @Composable
 fun NavigationRoute(onClose: () -> Unit, viewModel: NavigationViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -174,6 +170,16 @@ private fun RoutePreviewCard(
                             "reflect motorcycle rules - ride your own judgement.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                if (!state.connected) {
+                    // The map, search and route preview all work with no connection at all -
+                    // only starting guidance (which sends frames to the cluster) needs one.
+                    Text(
+                        "Cluster not connected - guidance won't reach the dash. Connect from the Connect tab first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(top = 8.dp),
                     )
                 }

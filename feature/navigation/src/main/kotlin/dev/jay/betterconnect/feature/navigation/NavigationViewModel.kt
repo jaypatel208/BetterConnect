@@ -3,12 +3,15 @@ package dev.jay.betterconnect.feature.navigation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.jay.betterconnect.core.data.ClusterController
 import dev.jay.betterconnect.core.data.GuidanceController
 import dev.jay.betterconnect.core.domain.LocationFixSource
 import dev.jay.betterconnect.core.domain.RoutesRepository
+import dev.jay.betterconnect.core.model.ConnectionState
 import dev.jay.betterconnect.core.model.LatLng
 import dev.jay.betterconnect.core.model.LocationFix
 import dev.jay.betterconnect.core.model.RoutePlan
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,12 +29,28 @@ data class NavigationUiState(
     val fetchingRoute: Boolean = false,
     val routeError: String? = null,
     val navigating: Boolean = false,
+    val connection: ConnectionState = ConnectionState.Idle,
 ) {
-    val canStart: Boolean get() = routePlan != null && !navigating
+    /**
+     * The map, destination picking and route preview all work with no cluster connection at
+     * all - this screen must be reachable and useful on its own (the whole point of splitting
+     * Connect and Navigate into separate tabs). Only actually starting guidance needs a live
+     * link, since that is what sends frames to the cluster.
+     */
+    val connected: Boolean get() = connection is ConnectionState.Ready
+    val canStart: Boolean get() = routePlan != null && !navigating && connected
 
     /** Google requires this warning to be shown wherever a two-wheeler route is displayed. */
     val showTwoWheelerWarning: Boolean get() = routePlan != null
 }
+
+private data class RouteFields(
+    val currentLocation: LatLng?,
+    val destination: LatLng?,
+    val routePlan: RoutePlan?,
+    val fetchingRoute: Boolean,
+    val routeError: String?,
+)
 
 sealed interface NavigationAction {
     data class SetDestination(val location: LatLng) : NavigationAction
@@ -45,6 +64,7 @@ class NavigationViewModel @Inject constructor(
     private val locationFixSource: LocationFixSource,
     private val routesRepository: RoutesRepository,
     private val guidanceController: GuidanceController,
+    private val clusterController: ClusterController,
 ) : ViewModel() {
 
     private val currentLocation = MutableStateFlow<LatLng?>(null)
@@ -59,25 +79,30 @@ class NavigationViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    val uiState: StateFlow<NavigationUiState> = combine(
+    private val routeFields: Flow<RouteFields> = combine(
         currentLocation,
         destination,
         routePlan,
         fetchingRoute,
         routeError,
+    ) { loc, dest, plan, fetching, error -> RouteFields(loc, dest, plan, fetching, error) }
+
+    val uiState: StateFlow<NavigationUiState> = combine(
+        routeFields,
         guidanceController.activePlan,
-    ) { values ->
-        @Suppress("UNCHECKED_CAST")
+        clusterController.state,
+    ) { fields, activePlan, connection ->
         NavigationUiState(
-            currentLocation = values[0] as LatLng?,
-            destination = values[1] as LatLng?,
-            routePlan = values[2] as RoutePlan?,
-            fetchingRoute = values[3] as Boolean,
-            routeError = values[4] as String?,
+            currentLocation = fields.currentLocation,
+            destination = fields.destination,
+            routePlan = fields.routePlan,
+            fetchingRoute = fields.fetchingRoute,
+            routeError = fields.routeError,
             // The guidance loop runs at service lifetime (GuidanceController), not tied to
             // this ViewModel - closing the nav screen must not stop it, and its own state
             // (including auto-stop on arrival) is the single source of truth for "navigating".
-            navigating = values[5] != null,
+            navigating = activePlan != null,
+            connection = connection,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NavigationUiState())
 

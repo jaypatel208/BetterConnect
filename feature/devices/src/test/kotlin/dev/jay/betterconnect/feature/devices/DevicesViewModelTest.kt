@@ -122,4 +122,41 @@ class DevicesViewModelTest {
             assertEquals(FakeClusterTransport.ADDRESS, expectMostRecentItem().lastAddress)
         }
     }
+
+    @Test
+    fun `startScanningIfIdle does not scan when bluetooth is off`() = runTest {
+        val h = Harness(backgroundScope)
+        h.scanner.bluetoothEnabled = false
+        val vm = DevicesViewModel(h.controller, h.repository)
+
+        vm.startScanningIfIdle()
+
+        assertEquals(0, h.scanner.startCalls)
+        assertFalse(h.scanner.scanning.value)
+    }
+
+    @Test
+    fun `toggling scan while bluetooth is off does not start it`() = runTest {
+        val h = Harness(backgroundScope)
+        h.scanner.bluetoothEnabled = false
+        val vm = DevicesViewModel(h.controller, h.repository)
+
+        vm.onAction(DevicesAction.ToggleScan)
+
+        assertEquals(0, h.scanner.startCalls)
+        assertFalse(h.scanner.scanning.value)
+    }
+
+    @Test
+    fun `bluetooth-off state is seeded from the scanner, not hardcoded on`() = runTest {
+        val h = Harness(backgroundScope)
+        h.scanner.bluetoothEnabled = false
+        val vm = DevicesViewModel(h.controller, h.repository)
+
+        vm.uiState.test {
+            awaitItem()
+            runCurrent()
+            assertFalse(expectMostRecentItem().bluetoothEnabled)
+        }
+    }
 }

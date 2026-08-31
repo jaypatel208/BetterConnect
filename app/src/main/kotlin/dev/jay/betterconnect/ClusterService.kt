@@ -1,14 +1,17 @@
 package dev.jay.betterconnect
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -94,12 +97,22 @@ class ClusterService : LifecycleService() {
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-            if (guiding) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            // A permission granted at onboarding can be revoked later (system Settings, or
+            // Android auto-revoking an unused one) - declaring this type without the
+            // permission currently held throws on API 34+, so re-check rather than trust
+            // onboarding-time state.
+            if (guiding && hasLocationPermission()) {
+                types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            }
             startForeground(NOTIFICATION_ID, buildNotification(notice), types)
         } else {
             startForeground(NOTIFICATION_ID, buildNotification(notice))
         }
     }
+
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
 
     private data class Notice(
         val connection: ConnectionState,

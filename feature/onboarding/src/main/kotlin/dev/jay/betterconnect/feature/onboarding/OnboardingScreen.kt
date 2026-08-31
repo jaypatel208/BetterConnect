@@ -30,17 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation3.runtime.EntryProviderScope
-import androidx.navigation3.runtime.NavKey
 import dev.jay.betterconnect.core.ble.SpecialAccess
-import kotlinx.serialization.Serializable
-
-@Serializable
-data object Onboarding : NavKey
-
-fun EntryProviderScope<NavKey>.onboardingEntry(onGranted: () -> Unit) {
-    entry<Onboarding> { OnboardingRoute(onGranted = onGranted) }
-}
 
 @Composable
 fun OnboardingRoute(onGranted: () -> Unit, viewModel: OnboardingViewModel = hiltViewModel()) {

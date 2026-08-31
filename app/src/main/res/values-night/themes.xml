@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      Only the pre-Compose window background differs from values/themes.xml - the real theming
+      is BetterConnectTheme's Material3 ColorScheme (core/designsystem). Without this variant
+      the window background stayed the light parent's white for one frame before setContent()
+      painted, even in dark mode.
+    -->
+    <style name="Theme.BetterConnect" parent="android:Theme.Material.NoActionBar" />
+</resources>

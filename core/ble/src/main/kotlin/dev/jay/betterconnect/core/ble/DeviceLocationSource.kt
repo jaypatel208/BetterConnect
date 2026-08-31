@@ -1,7 +1,10 @@
 package dev.jay.betterconnect.core.ble
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -30,6 +33,16 @@ object DeviceLocationSource {
         intervalMs: Long = 1_000L,
         maxUpdateDelayMs: Long = 0L,
     ): Flow<LocationFix> = callbackFlow {
+        // Onboarding is expected to have already granted this, but a permission revoked later
+        // (system Settings, or Android's auto-revoke-unused-permission) must not reach
+        // requestLocationUpdates() uncaught - that throws SecurityException.
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            close()
+            return@callbackFlow
+        }
+
         val client = LocationServices.getFusedLocationProviderClient(context)
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
             .setMaxUpdateDelayMillis(maxUpdateDelayMs)

@@ -46,7 +46,11 @@ class DevicesViewModel @Inject constructor(
     private val devices: DeviceRepository,
 ) : ViewModel() {
 
-    private val bluetoothOn = MutableStateFlow(true)
+    // Seeded from the adapter's current state, not a hardcoded `true` - BluetoothStateReceiver
+    // only emits on a *change* broadcast, so if Bluetooth is already off when this screen
+    // opens, this would otherwise stay wrong (and the off-banner would stay hidden) until the
+    // user toggled Bluetooth again.
+    private val bluetoothOn = MutableStateFlow(controller.scanner.bluetoothEnabled)
 
     val uiState: StateFlow<DevicesUiState> = combine(
         controller.scanner.results,
@@ -64,8 +68,14 @@ class DevicesViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DevicesUiState())
 
-    /** Called once when the screen first appears. A no-op if a scan is already running. */
+    /**
+     * Called once when the screen first appears. A no-op if a scan is already running **or**
+     * Bluetooth is off - `BleScanner.start()` used to silently no-op in that second case with
+     * no signal back to the UI at all, which is exactly what made "press Scan, nothing
+     * happens" so hard to diagnose. The Bluetooth-off banner is what tells the user why now.
+     */
     fun startScanningIfIdle() {
+        if (!bluetoothOn.value) return
         if (!controller.scanner.scanning.value) controller.scanner.start()
     }
 
@@ -83,7 +93,7 @@ class DevicesViewModel @Inject constructor(
             DevicesAction.ToggleScan ->
                 if (controller.scanner.scanning.value) {
                     controller.scanner.stop()
-                } else {
+                } else if (bluetoothOn.value) {
                     controller.scanner.start()
                 }
 

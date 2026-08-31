@@ -1,5 +1,12 @@
 package dev.jay.betterconnect.feature.devices
 
+import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -21,38 +29,52 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation3.runtime.EntryProviderScope
-import androidx.navigation3.runtime.NavKey
 import dev.jay.betterconnect.core.designsystem.component.Advisory
 import dev.jay.betterconnect.core.designsystem.component.DeviceRow
 import dev.jay.betterconnect.core.designsystem.component.ListHeading
-import dev.jay.betterconnect.core.designsystem.theme.StatusColors
-import kotlinx.serialization.Serializable
+import dev.jay.betterconnect.core.designsystem.component.SectionCard
+import dev.jay.betterconnect.core.designsystem.component.StatusPill
+import dev.jay.betterconnect.core.designsystem.component.describe
+import dev.jay.betterconnect.core.model.ConnectionState
 
-@Serializable
-data object Devices : NavKey
-
-fun EntryProviderScope<NavKey>.devicesEntry(onConnected: () -> Unit) {
-    entry<Devices> { DevicesRoute(onConnected = onConnected) }
-}
-
+/**
+ * This is the whole "Connect" tab's content - not a screen you navigate to and back from.
+ * Reachable at all times alongside Navigate, independent of connection state, per the
+ * official-app-style split the rider-facing product is meant to have.
+ */
 @Composable
-fun DevicesRoute(onConnected: () -> Unit, viewModel: DevicesViewModel = hiltViewModel()) {
+fun DevicesRoute(viewModel: DevicesViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // The system's own "turn on Bluetooth?" dialog - the app had no way to prompt this at
+    // all before, which is exactly why a Bluetooth-off scan looked like a dead button.
+    val enableBluetoothLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { /* BluetoothStateReceiver picks up the resulting state-changed broadcast. */ }
 
     LaunchedEffect(Unit) {
         viewModel.observeBluetoothState(context)
         viewModel.startScanningIfIdle()
     }
 
-    LaunchedEffect(state.connectedAddress) {
-        if (state.connectedAddress != null) onConnected()
-    }
-
-    DevicesScreen(state = state, onAction = viewModel::onAction)
+    DevicesScreen(
+        state = state,
+        onAction = viewModel::onAction,
+        onRequestEnableBluetooth = {
+            val hasConnectPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
+                PackageManager.PERMISSION_GRANTED
+            if (hasConnectPermission) {
+                runCatching {
+                    enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -60,6 +82,7 @@ fun DevicesScreen(
     state: DevicesUiState,
     onAction: (DevicesAction) -> Unit,
     modifier: Modifier = Modifier,
+    onRequestEnableBluetooth: () -> Unit = {},
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -67,15 +90,36 @@ fun DevicesScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
+            val (label, color) = state.connection.describe()
+            SectionCard(
+                title = "Cluster link",
+                subtitle = statusText(state.connection),
+                trailing = { StatusPill(label, color) },
+            ) {}
+        }
+
+        // Persistent and first on screen, not a line buried below the fold - this is the
+        // single most-missed piece of state in the app: Scan looks identical whether it's
+        // working or Bluetooth is simply off underneath it.
+        if (!state.bluetoothEnabled) {
+            item {
+                SectionCard(
+                    title = "Bluetooth is off",
+                    subtitle = "Turn it on to scan for the cluster.",
+                ) {
+                    Button(onClick = onRequestEnableBluetooth, modifier = Modifier.fillMaxWidth()) {
+                        Text("Turn on Bluetooth")
+                    }
+                }
+            }
+        }
+
+        item {
             // Missing this costs a wasted trip: the symptom looks like random disconnects.
             Advisory(
                 "Only one app can hold the cluster's BLE link. Force-stop Bajaj Ride Connect " +
                     "before connecting here, or both will fight over it.",
             )
-        }
-
-        if (!state.bluetoothEnabled) {
-            item { Advisory("Bluetooth is off.", color = StatusColors.Error) }
         }
 
         item {
@@ -89,8 +133,15 @@ fun DevicesScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                OutlinedButton(onClick = { onAction(DevicesAction.ToggleScan) }) {
-                    Text(if (state.scanning) "Stop scan" else "Scan")
+                if (state.bluetoothEnabled) {
+                    OutlinedButton(onClick = { onAction(DevicesAction.ToggleScan) }) {
+                        Text(if (state.scanning) "Stop scan" else "Scan")
+                    }
+                } else {
+                    // Always does something observable when pressed - never present-but-inert.
+                    OutlinedButton(onClick = onRequestEnableBluetooth) {
+                        Text("Turn on Bluetooth to scan")
+                    }
                 }
             }
         }
@@ -134,4 +185,13 @@ fun DevicesScreen(
             }
         }
     }
+}
+
+private fun statusText(connection: ConnectionState): String = when (connection) {
+    ConnectionState.Idle -> "Not connected yet"
+    is ConnectionState.Connecting -> "Connecting to ${connection.address}"
+    is ConnectionState.Discovering -> "Discovering services"
+    is ConnectionState.Ready -> "Linked - ready to navigate"
+    is ConnectionState.Unsupported -> connection.reason.message
+    is ConnectionState.Disconnected -> "Disconnected"
 }

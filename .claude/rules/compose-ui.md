@@ -87,18 +87,27 @@ No raw `Color(0xFF…)`, no bare `.dp` spacing literals outside the design syste
 `MaterialTheme.colorScheme` in feature code — use `RcColors`, `RcSpacing`, `RcType`, `RcShape`,
 `RcMotion`.
 
-## Navigation 3
+## Navigation — `full` is flat, not a back stack
 
-The `full` flavour uses `androidx.navigation3` (`navigation3-runtime`, `navigation3-ui`).
-`diag` keeps its existing string-route `NavHost` until someone has a reason to touch it.
+**Correction (2026-08-30):** `full` shipped with `androidx.navigation3` and a linear
+`Onboarding → Home → {Devices | Navigation | Debug}` back stack. That was the actual UX bug
+behind the "why do I have to connect the bike before I can even see the map" complaint —
+Navigate was only reachable through a button that Home rendered conditionally on connection
+state, and Nav3's `rememberSaveable`-backed back stack could also restore straight past
+`Onboarding` after a permission was revoked (`DEVELOPMENT-NOTES.md`'s crash tracker on that
+session). `full` no longer uses Nav3 at all: `androidx.navigation3` dependencies were removed.
 
-- Destinations are `@Serializable` `NavKey` objects/data classes, declared in the feature module
-  that owns them, so the key carries its arguments with types.
-- The back stack is state you own (`rememberNavBackStack`) and is hoisted at the app level —
-  this is the reason we chose Nav3, so don't hide it behind a wrapper that makes it opaque again.
-- Each feature module exposes an `EntryProviderBuilder.xEntry(onNavigateTo…)` extension. The app
-  module composes them; **feature modules never depend on each other.**
-- Shared-element transitions go through `SharedTransitionScope` on `NavDisplay`.
+- `FullApp()` renders a persistent Material3 `NavigationBar` with two always-reachable tabs -
+  **Connect** and **Navigate** - as plain `when (selectedTab)` composable swaps, not a back
+  stack. Neither tab depends on the other's state; Navigate works with no cluster connection.
+- `Onboarding` and the hidden `Debug` menu are conditional full-screen composables gated by
+  local `Boolean` state in `FullApp()`, not `NavKey`/`EntryProviderScope` destinations - there
+  is no push/pop need for either, so a back stack would be unused machinery.
+- Re-verify required permissions on **every** resume (a `LifecycleEventObserver` in `FullApp()`
+  driving that `Onboarding` gate), not only once at first install - the exact gap that let a
+  revoked permission reach an unguarded BLE/location call.
+- `diag` keeps its existing `androidx.navigation.compose` string-route `NavHost` (a different,
+  unrelated artifact from Nav3) until someone has a reason to touch it.
 
 ## Composition and correctness
 

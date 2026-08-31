@@ -2,12 +2,15 @@ package dev.jay.betterconnect.core.designsystem.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 
 private val LightColors = lightColorScheme(
@@ -55,6 +58,12 @@ fun BetterConnectTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = BetterConnectTypography,
-        content = content,
-    )
+    ) {
+        // Without this, screens paint theme-correct text onto whatever the window background
+        // happens to be - which for this Activity's XML theme is permanently white, so dark
+        // mode's light `onSurface` text was invisible. This is the actual screen paint.
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            content()
+        }
+    }
 }

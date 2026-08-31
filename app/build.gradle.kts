@@ -107,9 +107,6 @@ dependencies {
     "fullImplementation"(project(":feature:devices"))
     "fullImplementation"(project(":feature:navigation"))
     "fullImplementation"(project(":feature:debug"))
-    "fullImplementation"(libs.androidx.navigation3.runtime)
-    "fullImplementation"(libs.androidx.navigation3.ui)
-    "fullImplementation"(libs.androidx.lifecycle.viewmodel.navigation3)
 
     implementation(libs.androidx.core)
     implementation(libs.androidx.lifecycle.runtime.ktx)

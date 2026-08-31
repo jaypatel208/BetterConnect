@@ -1,5 +1,6 @@
 package dev.jay.betterconnect.core.ble
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
@@ -7,7 +8,10 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.jay.betterconnect.core.link.DeviceScanner
 import dev.jay.betterconnect.core.model.DeviceInfo
@@ -56,6 +60,10 @@ class BleScanner @Inject constructor(@param:ApplicationContext private val conte
     }
 
     override fun start() {
+        if (!hasScanPermission()) {
+            Log.w(TAG, "start() called without scan permission - not calling into BluetoothLeScanner")
+            return
+        }
         val scanner = adapter?.bluetoothLeScanner ?: return
         if (_scanning.value) return
 
@@ -65,6 +73,20 @@ class BleScanner @Inject constructor(@param:ApplicationContext private val conte
             .build()
         scanner.startScan(emptyList(), settings, callback)
         _scanning.value = true
+    }
+
+    /**
+     * Belt-and-suspenders: onboarding is expected to have already granted this, but a
+     * permission revoked later (system Settings, or Android's auto-revoke-unused-permission)
+     * must not reach `startScan()` uncaught - that throws `SecurityException`.
+     */
+    private fun hasScanPermission(): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Manifest.permission.BLUETOOTH_SCAN
+        } else {
+            Manifest.permission.ACCESS_FINE_LOCATION
+        }
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun stop() {
